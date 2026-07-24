@@ -38,21 +38,21 @@ Este roadmap foi reestruturado de forma **altamente modular e incremental**. Cad
 
 ---
 
-## ⚡ MILESTONE 2: CONCORRÊNCIA, STREAMING & APLICAÇÃO MÓVEL
+## ⚡ MILESTONE 2: PLAYER DE ÁUDIO, CONCORRÊNCIA & STREAMING MÓVEL
 
-### Fase 6: Fila Concorrente Assíncrona & Buffer Circular (FIFO)
-- **Foco**: Estrutura de dados Produtor-Consumidor assíncrona para gerenciar filas de sentenças e buffers de áudio em paralelo.
+### Fase 6: Player de Áudio Neural & Avaliação Auditiva da Voz
+- **Foco**: Integrar a camada de reprodução de áudio (`audioplayers` / `just_audio`), permitindo tocar o áudio sintetizado diretamente no dispositivo com controles (Play, Pause, Progress Bar) para validação imediata da qualidade da voz pelo usuário/orientador.
+- **Testes**: Teste de reprodução em hardware real, verificação de latência de inicialização e avaliação perceptual da voz (MOS).
+- **Status**: Pendente
+
+### Fase 7: Fila Concorrente Assíncrona & Buffer Circular (FIFO)
+- **Foco**: Estrutura de dados Produtor-Consumidor assíncrona para gerenciar filas de sentenças e buffers de áudio em paralelo, garantindo reprodução fluida e sem pausas entre sentenças durante leituras longas.
 - **Testes**: Testes de estresse de concorrência e gerenciamento de capacidade da fila.
 - **Status**: Pendente
 
-### Fase 7: Gerenciador de Memória & Thread de Purge (Prevenção OOM)
-- **Foco**: Thread dedicada para descarte automático de buffers de áudio/sentenças já processados, garantindo RAM constante durante livros inteiros.
+### Fase 8: Gerenciador de Memória & Thread de Purge (Prevenção OOM)
+- **Foco**: Thread dedicada para descarte automático de buffers de áudio e sentenças já processadas, mantendo o consumo de RAM constante durante a leitura de livros inteiros.
 - **Testes**: Teste de carga com capítulos de 10.000+ palavras verificando estabilidade da RAM.
-- **Status**: Pendente
-
-### Fase 8: Interface Móvel (UI Leitor EPUB + Player Neural)
-- **Foco**: Interface de usuário (UI) móvel com exibição sincronizada do texto, destacando a sentença em leitura e controles de áudio (Play, Pause, Progress Bar).
-- **Testes**: Testes de interface e experiência de usuário (UX).
 - **Status**: Pendente
 
 ---
