@@ -109,7 +109,7 @@ class PipelineOrchestrator {
     }();
 
     while (true) {
-      final item = await queue.dequeue();
+      final item = await queue.dequeue(release: false);
       if (item == null) break;
       yield item;
     }

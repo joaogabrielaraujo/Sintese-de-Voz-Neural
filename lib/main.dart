@@ -9,6 +9,8 @@ import 'core/document/epub_model.dart';
 import 'core/document/epub_parser.dart';
 import 'core/document/epub_bytes_importer.dart';
 import 'core/document/selected_document.dart';
+import 'core/memory/circular_audio_buffer.dart';
+import 'core/memory/sentence_audio_item.dart';
 import 'core/metrics/mos_rating_model.dart';
 import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
@@ -73,6 +75,12 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   PipelineResult? _lastResult;
   String? _errorMessage;
   String _importStatus = 'Livro de demonstração carregado';
+  CircularAudioBuffer? _streamQueue;
+  StreamIterator<SentenceAudioItem>? _streamIterator;
+  SentenceAudioItem? _activeStreamingItem;
+  final List<String> _streamingVisibleSentences = [];
+  bool _isStreaming = false;
+  bool _isAdvancingStream = false;
 
   // Estados do Player de Áudio
   TTSAudioState _audioState = TTSAudioState.stopped;
@@ -105,6 +113,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   void _initAudioListeners() {
     _stateSub = _audioPlayer.stateStream.listen((state) {
       if (mounted) setState(() => _audioState = state);
+      if (state == TTSAudioState.completed && _isStreaming) {
+        unawaited(_advanceStreamingSentence());
+      }
     });
 
     _posSub = _audioPlayer.positionStream.listen((pos) {
@@ -139,6 +150,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   @override
   void dispose() {
+    unawaited(_stopStreamingPipeline());
     _stateSub?.cancel();
     _posSub?.cancel();
     _durSub?.cancel();
@@ -200,38 +212,107 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   Future<void> _runMvpPipeline() async {
     if (_loadedBook == null || _currentChapter == null) return;
 
+    await _stopStreamingPipeline();
+    final queue = CircularAudioBuffer(maxItems: 3);
+    final iterator = StreamIterator<SentenceAudioItem>(
+      _orchestrator.processChapterStream(
+        book: _loadedBook!,
+        chapter: _currentChapter!,
+        queue: queue,
+      ),
+    );
+
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
       _lastResult = null;
       _activeSentenceIndex = 0;
+      _streamQueue = queue;
+      _streamIterator = iterator;
+      _activeStreamingItem = null;
+      _streamingVisibleSentences.clear();
+      _isStreaming = true;
     });
 
+    await _advanceStreamingSentence();
+  }
+
+  Future<void> _advanceStreamingSentence() async {
+    if (_isAdvancingStream || !_isStreaming) return;
+    _isAdvancingStream = true;
     try {
-      final PipelineResult result = await _orchestrator.processChapter(
-        book: _loadedBook!,
-        chapter: _currentChapter!,
-      );
+      final iterator = _streamIterator;
+      final queue = _streamQueue;
+      if (iterator == null || queue == null) return;
 
-      if (result.combinedWavBytes.isNotEmpty) {
-        await _audioPlayer.loadWavBytes(result.combinedWavBytes);
+      final hasNext = await iterator.moveNext();
+      if (!hasNext) {
+        final active = _activeStreamingItem;
+        if (active != null) {
+          queue.release(active);
+        }
+        _activeStreamingItem = null;
+        _isStreaming = false;
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _importStatus = 'Leitura concluída';
+          });
+        }
+        await iterator.cancel();
+        queue.dispose();
+        _streamIterator = null;
+        _streamQueue = null;
+        return;
       }
 
-      setState(() {
-        _lastResult = result;
-        _isProcessing = false;
-        _totalDuration = _audioPlayer.currentDuration;
-      });
-
-      if (result.combinedWavBytes.isNotEmpty) {
-        await _audioPlayer.play();
+      final item = iterator.current;
+      final previous = _activeStreamingItem;
+      if (previous != null) queue.release(previous);
+      _activeStreamingItem = item;
+      _streamingVisibleSentences.add(item.rawSentence.text);
+      if (_streamingVisibleSentences.length > 5) {
+        _streamingVisibleSentences.removeAt(0);
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isProcessing = false;
-      });
+
+      await _audioPlayer.loadAudioBuffer(item.audio);
+      if (mounted) {
+        setState(() {
+          _activeSentenceIndex = _streamingVisibleSentences.length - 1;
+          _importStatus = 'Frase ${item.rawSentence.index + 1} em reprodução';
+          _isProcessing = false;
+        });
+      }
+      await _audioPlayer.play();
+    } catch (error) {
+      _isStreaming = false;
+      await _stopStreamingPipeline();
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = error.toString();
+          _importStatus = 'Falha durante a leitura';
+        });
+      }
+    } finally {
+      _isAdvancingStream = false;
     }
+  }
+
+  Future<void> _stopStreamingPipeline() async {
+    _isStreaming = false;
+    final active = _activeStreamingItem;
+    final iterator = _streamIterator;
+    final queue = _streamQueue;
+    _streamIterator = null;
+    _streamQueue = null;
+    _activeStreamingItem = null;
+    if (active != null) {
+      queue?.release(active);
+    }
+    queue?.cancel();
+    if (iterator != null) await iterator.cancel();
+    queue?.dispose();
   }
 
   Future<void> _importEpub() async {
@@ -326,8 +407,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final sentencesList =
-        _lastResult?.items.map((i) => i.normalizedText).toList() ?? [];
+    final sentencesList = _isStreaming
+        ? _streamingVisibleSentences
+        : (_lastResult?.items.map((i) => i.normalizedText).toList() ?? []);
     final activeEngineLabel =
         _engine.activeType?.label ?? 'Nenhum motor inicializado';
 
@@ -445,6 +527,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                               setState(() {
                                 _currentChapter = selected;
                                 _lastResult = null;
+                                unawaited(_stopStreamingPipeline());
                                 _audioPlayer.stop();
                               });
                             }
@@ -597,6 +680,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                   sentences: sentencesList,
                   activeIndex: _activeSentenceIndex,
                   onSentenceTap: (index) {
+                    if (_isStreaming || _lastResult == null) return;
                     setState(() => _activeSentenceIndex = index);
                     _audioPlayer.seek(_lastResult!.timeline[index].start);
                   },
@@ -616,7 +700,11 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                     _audioPlayer.play();
                   }
                 },
-                onStopPressed: () => _audioPlayer.stop(),
+                onStopPressed: () {
+                  unawaited(_stopStreamingPipeline());
+                  unawaited(_audioPlayer.stop());
+                  if (mounted) setState(() => _isProcessing = false);
+                },
                 onSeekChanged: (pos) => _audioPlayer.seek(pos),
                 onSpeedChanged: (speed) {
                   setState(() => _currentSpeed = speed);

@@ -116,5 +116,39 @@ void main() {
       expect(consumedItems.length, equals(5));
       expect(consumedItems, equals(producedItems));
     });
+
+    test('Streaming mantém áudio até liberação explícita', () async {
+      final item = _createMockItem(0, 'Áudio atual');
+
+      await buffer.enqueue(item);
+      final consumed = await buffer.dequeue(release: false);
+
+      expect(consumed, same(item));
+      expect(buffer.memoryManager.stats.allocatedBytes, greaterThan(0));
+
+      buffer.release(item);
+
+      expect(buffer.memoryManager.stats.allocatedBytes, equals(0));
+      expect(item.audio.samples.every((sample) => sample == 0.0), isTrue);
+    });
+
+    test('Cancelamento libera fila e desbloqueia produtor', () async {
+      final first = _createMockItem(0, 'Primeiro');
+      final second = _createMockItem(1, 'Segundo');
+      final third = _createMockItem(2, 'Terceiro');
+      final fourth = _createMockItem(3, 'Quarto');
+
+      await buffer.enqueue(first);
+      await buffer.enqueue(second);
+      await buffer.enqueue(third);
+      final blockedEnqueue = buffer.enqueue(fourth);
+
+      buffer.cancel();
+
+      await expectLater(blockedEnqueue, throwsStateError);
+      expect(buffer.isEmpty, isTrue);
+      expect(buffer.isCompleted, isTrue);
+      expect(buffer.memoryManager.stats.allocatedBytes, equals(0));
+    });
   });
 }

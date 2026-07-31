@@ -23,6 +23,7 @@ class CircularAudioBuffer {
   Completer<void>? _itemAvailableCompleter;
 
   bool _isCompleted = false;
+  bool _isCancelled = false;
 
   CircularAudioBuffer({this.maxItems = 5});
 
@@ -40,9 +41,15 @@ class CircularAudioBuffer {
 
   /// Adiciona um item à fila (Produtor). Se a fila estiver cheia ou RAM estourar, aguarda espaço (Backpressure).
   Future<void> enqueue(SentenceAudioItem item) async {
+    if (_isCancelled) {
+      throw StateError('Audio buffer was cancelled.');
+    }
     while (isFull || memoryManager.shouldThrottleProducer(maxMemoryMb: 50.0)) {
       _spaceAvailableCompleter ??= Completer<void>();
       await _spaceAvailableCompleter!.future;
+      if (_isCancelled) {
+        throw StateError('Audio buffer was cancelled.');
+      }
     }
 
     memoryManager.trackAllocation(item);
@@ -60,8 +67,8 @@ class CircularAudioBuffer {
   }
 
   /// Remove e retorna o próximo item da fila (Consumidor) aplicando o descarte/purge da memória RAM.
-  Future<SentenceAudioItem?> dequeue() async {
-    while (_queue.isEmpty && !_isCompleted) {
+  Future<SentenceAudioItem?> dequeue({bool release = true}) async {
+    while (_queue.isEmpty && !_isCompleted && !_isCancelled) {
       _itemAvailableCompleter ??= Completer<void>();
       await _itemAvailableCompleter!.future;
     }
@@ -71,7 +78,9 @@ class CircularAudioBuffer {
     final item = _queue.removeFirst();
 
     // Aplica a política de purge pós-reprodução liberando a RAM
-    memoryManager.purge(item);
+    if (release) {
+      memoryManager.purge(item);
+    }
 
     // Notifica produtor que há espaço disponível na fila
     if (_spaceAvailableCompleter != null && !_spaceAvailableCompleter!.isCompleted) {
@@ -80,6 +89,11 @@ class CircularAudioBuffer {
     }
 
     return item;
+  }
+
+  /// Libera o áudio somente depois de o consumidor terminar de reproduzi-lo.
+  void release(SentenceAudioItem item) {
+    memoryManager.purge(item);
   }
 
   /// Sinaliza que o Produtor concluiu a síntese de todas as sentenças do capítulo.
@@ -98,6 +112,7 @@ class CircularAudioBuffer {
     }
     _queue.clear();
     _isCompleted = false;
+    _isCancelled = false;
     if (_spaceAvailableCompleter != null && !_spaceAvailableCompleter!.isCompleted) {
       _spaceAvailableCompleter!.complete();
     }
@@ -112,9 +127,28 @@ class CircularAudioBuffer {
   /// Stream para observação reativa dos itens enfileirados.
   Stream<SentenceAudioItem> get itemStream => _streamController.stream;
 
+  /// Cancela produtor e consumidor, liberando itens pendentes sem deixar
+  /// operações bloqueadas aguardando espaço ou novos itens.
+  void cancel() {
+    _isCancelled = true;
+    _isCompleted = true;
+    for (final item in _queue) {
+      memoryManager.purge(item);
+    }
+    _queue.clear();
+    if (_spaceAvailableCompleter != null && !_spaceAvailableCompleter!.isCompleted) {
+      _spaceAvailableCompleter!.complete();
+    }
+    _spaceAvailableCompleter = null;
+    if (_itemAvailableCompleter != null && !_itemAvailableCompleter!.isCompleted) {
+      _itemAvailableCompleter!.complete();
+    }
+    _itemAvailableCompleter = null;
+  }
+
   /// Libera recursos.
   void dispose() {
-    clear();
+    cancel();
     _streamController.close();
   }
 }
