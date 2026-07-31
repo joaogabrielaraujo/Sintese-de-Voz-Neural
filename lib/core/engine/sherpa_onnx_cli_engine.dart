@@ -237,7 +237,7 @@ class SherpaOnnxCliEngine extends ITTSEngine {
 
   @override
   Future<AudioBuffer> synthesize(String text) async {
-    final String cleanText = TTSNormalizer.removeDiacritics(text.trim());
+    final String cleanText = text.trim();
     if (cleanText.isEmpty) {
       return AudioBuffer(
         samples: Float32List(0),

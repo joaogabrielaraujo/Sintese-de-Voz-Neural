@@ -31,5 +31,11 @@ void main() {
 
       expect(result, equals('Capitulo 1: Fundamentacao, Objetivos e Versao'));
     });
+    test('preserva diacríticos no texto normalizado para o motor fonético', () {
+      expect(
+        TTSNormalizer.normalize('Ação, coração e desacopladas.'),
+        equals('Ação, coração e desacopladas.'),
+      );
+    });
   });
 }

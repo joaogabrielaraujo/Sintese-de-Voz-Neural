@@ -45,7 +45,12 @@ class EpubBytesImporter {
       for (final entry in archive) {
         if (entry.isFile) {
           final path = EpubParser.normalizeArchivePath(entry.name);
-          files[path] = utf8.decode(entry.content as List<int>, allowMalformed: false);
+          if (_isTextEntry(path)) {
+            files[path] = utf8.decode(
+              entry.content as List<int>,
+              allowMalformed: false,
+            );
+          }
         }
       }
       if (!files.containsKey('META-INF/container.xml')) {
@@ -65,4 +70,16 @@ class EpubBytesImporter {
 
   EpubBook importBytes({required String name, required Uint8List bytes}) =>
       importDocument(SelectedDocument(name: name, bytes: bytes));
+
+  static bool _isTextEntry(String path) {
+    final lowerPath = path.toLowerCase();
+    return lowerPath == 'mimetype' ||
+        lowerPath.endsWith('.xml') ||
+        lowerPath.endsWith('.opf') ||
+        lowerPath.endsWith('.xhtml') ||
+        lowerPath.endsWith('.html') ||
+        lowerPath.endsWith('.htm') ||
+        lowerPath.endsWith('.ncx') ||
+        lowerPath.endsWith('.css');
+  }
 }

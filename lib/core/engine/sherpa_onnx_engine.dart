@@ -300,7 +300,9 @@ class SherpaOnnxTTSEngine extends ITTSEngine {
 
   @override
   Future<AudioBuffer> synthesize(String text) async {
-    final String cleanText = TTSNormalizer.removeDiacritics(text.trim());
+    // O modelo PT-BR usa espeak-ng-data para converter grafemas em fonemas.
+    // Remover diacríticos aqui transforma "ação" em "acao" e "ç" em "c".
+    final String cleanText = text.trim();
     if (cleanText.isEmpty) {
       return AudioBuffer(
         samples: Float32List(0),
