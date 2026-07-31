@@ -13,7 +13,7 @@ class EpubParser {
     String language = 'pt-BR';
 
     // 1. Localizar o caminho do manifesto OPF em META-INF/container.xml
-    final String opfPath = _findOpfPath(files);
+    final String opfPath = normalizeArchivePath(_findOpfPath(files));
 
     // 2. Extrair metadados e spine do arquivo OPF
     final String opfContent = files[opfPath] ?? files['content.opf'] ?? files['OEBPS/content.opf'] ?? '';
@@ -87,13 +87,13 @@ class EpubParser {
       final RegExp rootfileRegex = RegExp(r'full-path="([^"]+)"', caseSensitive: false);
       final Match? match = rootfileRegex.firstMatch(content);
       if (match != null && match.group(1) != null) {
-        return match.group(1)!;
+        return normalizeArchivePath(match.group(1)!);
       }
     }
 
     // Tentar caminhos padrão
     for (final String path in files.keys) {
-      if (path.endsWith('.opf')) return path;
+      if (path.endsWith('.opf')) return normalizeArchivePath(path);
     }
     return 'EPUB/content.opf';
   }
@@ -112,8 +112,9 @@ class EpubParser {
 
     for (final Match match in itemRegex.allMatches(opfContent)) {
       final String id = match.group(1)!;
-      final String href = match.group(2)!;
-      manifest[id] = baseDir.isEmpty ? href : '$baseDir$href';
+      final String href = Uri.decodeFull(match.group(2)!);
+      final String resolved = normalizeArchivePath(baseDir.isEmpty ? href : '$baseDir$href');
+      if (resolved.isNotEmpty) manifest[id] = resolved;
     }
 
     // Mapear Ordem da Spine
@@ -126,6 +127,25 @@ class EpubParser {
     }
 
     return paths;
+  }
+
+  /// Resolves archive paths while rejecting absolute paths and traversal.
+  static String normalizeArchivePath(String path) {
+    final decoded = Uri.decodeFull(path.replaceAll('\\', '/'));
+    if (decoded.startsWith('/') || RegExp(r'^[A-Za-z]:').hasMatch(decoded)) {
+      throw const FormatException('Caminho EPUB absoluto não permitido.');
+    }
+    final parts = <String>[];
+    for (final part in decoded.split('/')) {
+      if (part.isEmpty || part == '.') continue;
+      if (part == '..') {
+        if (parts.isEmpty) throw const FormatException('Traversal de caminho EPUB não permitido.');
+        parts.removeLast();
+      } else {
+        parts.add(part);
+      }
+    }
+    return parts.join('/');
   }
 
   static String? _extractXmlTag(String xml, String tagName) {

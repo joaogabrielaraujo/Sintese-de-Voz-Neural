@@ -7,6 +7,8 @@ import 'core/engine/composite_tts_engine.dart';
 import 'core/engine/tts_engine_type.dart';
 import 'core/document/epub_model.dart';
 import 'core/document/epub_parser.dart';
+import 'core/document/epub_bytes_importer.dart';
+import 'core/document/selected_document.dart';
 import 'core/metrics/mos_rating_model.dart';
 import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
@@ -40,7 +42,14 @@ class TCCNeuralApp extends StatelessWidget {
 }
 
 class PoCNeuralHomePage extends StatefulWidget {
-  const PoCNeuralHomePage({super.key});
+  final EpubDocumentPicker picker;
+  final EpubBytesImporter importer;
+
+  const PoCNeuralHomePage({
+    super.key,
+    this.picker = const NativeEpubDocumentPicker(),
+    this.importer = const EpubBytesImporter(),
+  });
 
   @override
   State<PoCNeuralHomePage> createState() => _PoCNeuralHomePageState();
@@ -63,6 +72,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   bool _isProcessing = false;
   PipelineResult? _lastResult;
   String? _errorMessage;
+  String _importStatus = 'Livro de demonstração carregado';
 
   // Estados do Player de Áudio
   TTSAudioState _audioState = TTSAudioState.stopped;
@@ -220,6 +230,48 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       setState(() {
         _errorMessage = e.toString();
         _isProcessing = false;
+      });
+    }
+  }
+
+  Future<void> _importEpub() async {
+    setState(() {
+      _importStatus = 'Selecionando EPUB...';
+      _errorMessage = null;
+    });
+    try {
+      final selected = await widget.picker.pickEpub();
+      if (!mounted) return;
+      if (selected == null) {
+        setState(() => _importStatus = 'Importação cancelada');
+        return;
+      }
+      setState(() => _importStatus = 'Lendo EPUB...');
+      final book = widget.importer.importDocument(selected);
+      if (!mounted) return;
+      setState(() {
+        _loadedBook = book;
+        _currentChapter = book.chapterOne;
+        _lastResult = null;
+        _importStatus = 'EPUB importado com sucesso';
+      });
+    } on EpubImportException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha na importação';
+      });
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha na importação';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Não foi possível importar este EPUB.';
+        _importStatus = 'Falha na importação';
       });
     }
   }
@@ -411,6 +463,19 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                 ),
               ),
             ],
+
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isProcessing ? null : _importEpub,
+              icon: const Icon(Icons.file_open),
+              label: const Text('Importar EPUB do dispositivo'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _importStatus,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+            ),
 
             // Indicador de Motor TTS Neural Ativo
             Container(
