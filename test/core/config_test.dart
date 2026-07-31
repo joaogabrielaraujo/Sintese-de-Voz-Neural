@@ -9,11 +9,13 @@ void main() {
       expect(config.sampleRate, equals(22050));
       expect(config.numThreads, equals(2));
       expect(config.noiseScale, equals(0.667));
-      expect(config.lengthScale, equals(1.0));
-      expect(config.modelPath, contains('vits-piper-pt_BR-faber-medium.onnx'));
+      expect(config.lengthScale, equals(1.25));
+      expect(config.modelPath, contains('pt_BR-faber-medium.onnx'));
+      expect(config.espeakDataPath, equals('assets/models/espeak-ng-data'));
     });
 
-    test('Deve lançar AssertionError se sampleRate for menor ou igual a zero', () {
+    test('Deve lançar AssertionError se sampleRate for menor ou igual a zero',
+        () {
       expect(
         () => TTSConfig(
           modelPath: 'model.onnx',

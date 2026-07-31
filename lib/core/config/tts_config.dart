@@ -15,6 +15,13 @@ class TTSConfig {
   /// Caminho opcional do arquivo léxico (dicionário fonético).
   final String? lexiconPath;
 
+  /// Real `espeak-ng-data` directory required by Piper voices.
+  ///
+  /// The application never fabricates or downloads this runtime data. The
+  /// caller must point to a complete directory bundled by the application or
+  /// provisioned externally.
+  final String? espeakDataPath;
+
   /// Taxa de amostragem do áudio sintetizado em Hz (padrão: 22050 Hz).
   final int sampleRate;
 
@@ -32,6 +39,7 @@ class TTSConfig {
     required this.modelPath,
     required this.tokensPath,
     this.lexiconPath,
+    this.espeakDataPath,
     this.sampleRate = 22050,
     this.numThreads = 2,
     this.noiseScale = 0.667,
@@ -41,16 +49,19 @@ class TTSConfig {
 
   /// Configuração padrão pré-definida para o modelo Português BR em ONNX.
   factory TTSConfig.defaultPtBr({
-    String modelPath = 'assets/models/vits-piper-pt_BR-faber-medium.onnx',
+    String modelPath = 'assets/models/pt_BR-faber-medium.onnx',
     String tokensPath = 'assets/models/tokens.txt',
+    String espeakDataPath = 'assets/models/espeak-ng-data',
   }) {
     return TTSConfig(
       modelPath: modelPath,
       tokensPath: tokensPath,
+      lexiconPath: null,
+      espeakDataPath: espeakDataPath,
       sampleRate: 22050,
       numThreads: 2,
       noiseScale: 0.667,
-      lengthScale: 1.0,
+      lengthScale: 1.25,
     );
   }
 
