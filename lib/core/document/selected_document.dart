@@ -22,9 +22,11 @@ abstract class EpubDocumentPicker {
 /// Android's Storage Access Framework is used by file_picker, so no path or
 /// broad storage permission is required.
 class NativeEpubDocumentPicker implements EpubDocumentPicker {
+  const NativeEpubDocumentPicker();
+
   @override
   Future<SelectedDocument?> pickEpub() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['epub'],
       withData: true,
