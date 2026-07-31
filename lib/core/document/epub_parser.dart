@@ -108,19 +108,23 @@ class EpubParser {
 
     // Mapear item IDs para hrefs no manifesto
     final Map<String, String> manifest = {};
-    final RegExp itemRegex = RegExp(r'<item\s+[^>]*id="([^"]+)"[^>]*href="([^"]+)"[^>]*>', caseSensitive: false);
+    final RegExp itemRegex = RegExp(r'<item\b([^>]*)>', caseSensitive: false);
 
     for (final Match match in itemRegex.allMatches(opfContent)) {
-      final String id = match.group(1)!;
-      final String href = Uri.decodeFull(match.group(2)!);
+      final attributes = match.group(1) ?? '';
+      final String? id = _extractAttribute(attributes, 'id');
+      final String? rawHref = _extractAttribute(attributes, 'href');
+      if (id == null || rawHref == null) continue;
+      final String href = Uri.decodeFull(rawHref);
       final String resolved = normalizeArchivePath(baseDir.isEmpty ? href : '$baseDir$href');
       if (resolved.isNotEmpty) manifest[id] = resolved;
     }
 
     // Mapear Ordem da Spine
-    final RegExp itemrefRegex = RegExp(r'<itemref\s+[^>]*idref="([^"]+)"[^>]*>', caseSensitive: false);
+    final RegExp itemrefRegex = RegExp(r'<itemref\b([^>]*)>', caseSensitive: false);
     for (final Match match in itemrefRegex.allMatches(opfContent)) {
-      final String idref = match.group(1)!;
+      final String? idref = _extractAttribute(match.group(1) ?? '', 'idref');
+      if (idref == null) continue;
       if (manifest.containsKey(idref)) {
         paths.add(manifest[idref]!);
       }
@@ -146,6 +150,14 @@ class EpubParser {
       }
     }
     return parts.join('/');
+  }
+
+  static String? _extractAttribute(String attributes, String name) {
+    final regex = RegExp(
+      '\\b${RegExp.escape(name)}\\s*=\\s*["\\\']([^"\\\']+)["\\\']',
+      caseSensitive: false,
+    );
+    return regex.firstMatch(attributes)?.group(1);
   }
 
   static String? _extractXmlTag(String xml, String tagName) {
