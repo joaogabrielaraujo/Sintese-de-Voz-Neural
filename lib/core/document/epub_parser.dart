@@ -16,7 +16,10 @@ class EpubParser {
     final String opfPath = normalizeArchivePath(_findOpfPath(files));
 
     // 2. Extrair metadados e spine do arquivo OPF
-    final String opfContent = files[opfPath] ?? files['content.opf'] ?? files['OEBPS/content.opf'] ?? '';
+    final String opfContent = files[opfPath] ?? '';
+    if (opfContent.isEmpty) {
+      throw const FormatException('OPF do EPUB não foi encontrado.');
+    }
 
     if (opfContent.isNotEmpty) {
       title = _extractXmlTag(opfContent, 'dc:title') ?? _extractXmlTag(opfContent, 'title') ?? title;
@@ -84,10 +87,13 @@ class EpubParser {
     const String containerPath = 'META-INF/container.xml';
     if (files.containsKey(containerPath)) {
       final String content = files[containerPath]!;
-      final RegExp rootfileRegex = RegExp(r'full-path="([^"]+)"', caseSensitive: false);
+      final RegExp rootfileRegex = RegExp(r'<rootfile\b([^>]*)>', caseSensitive: false);
       final Match? match = rootfileRegex.firstMatch(content);
-      if (match != null && match.group(1) != null) {
-        return normalizeArchivePath(match.group(1)!);
+      final String? fullPath = match == null
+          ? null
+          : _extractAttribute(match.group(1) ?? '', 'full-path');
+      if (fullPath != null) {
+        return normalizeArchivePath(fullPath);
       }
     }
 
@@ -115,7 +121,7 @@ class EpubParser {
       final String? id = _extractAttribute(attributes, 'id');
       final String? rawHref = _extractAttribute(attributes, 'href');
       if (id == null || rawHref == null) continue;
-      final String href = Uri.decodeFull(rawHref);
+      final String href = Uri.decodeFull(rawHref).split('#').first;
       final String resolved = normalizeArchivePath(baseDir.isEmpty ? href : '$baseDir$href');
       if (resolved.isNotEmpty) manifest[id] = resolved;
     }

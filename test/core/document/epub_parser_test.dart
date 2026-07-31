@@ -61,5 +61,30 @@ void main() {
       expect(chap1!.title, equals('Capítulo 1: O Início'));
       expect(chap1.cleanText, contains('Este é o texto limpo do primeiro capítulo do EPUB real.'));
     });
+
+    test('aceita atributos com aspas simples e fragmento no href', () {
+      final book = EpubParser.parseArchive({
+        'META-INF/container.xml':
+            "<container><rootfile full-path='OPS/package.opf'/></container>",
+        'OPS/package.opf': """
+          <package><manifest>
+            <item media-type='application/xhtml+xml' href='chapter.xhtml#inicio' id='chapter'/>
+          </manifest><spine><itemref idref='chapter'/></spine></package>
+        """,
+        'OPS/chapter.xhtml': '<html><body><p>Texto acentuado: ação.</p></body></html>',
+      });
+
+      expect(book.chapters.single.cleanText, contains('ação'));
+    });
+
+    test('rejeita OPF ausente em vez de voltar silenciosamente ao exemplo', () {
+      expect(
+        () => EpubParser.parseArchive({
+          'META-INF/container.xml':
+              '<container><rootfile full-path="OPS/missing.opf"/></container>',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 }

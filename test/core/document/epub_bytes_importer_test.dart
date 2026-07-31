@@ -25,6 +25,34 @@ Uint8List _epubBytes({bool encodedChapterName = false}) {
       '<html><body><h1>Capítulo um</h1><p>Ação, órgão e avó.</p></body></html>',
     ));
   return Uint8List.fromList(ZipEncoder().encode(archive));
+  test('rejects a file without a ZIP signature', () {
+    expect(
+      () => importer.importBytes(
+        name: 'livro.epub',
+        bytes: Uint8List.fromList(List<int>.filled(32, 0)),
+      ),
+      throwsA(
+        predicate<EpubImportException>(
+          (error) => error.message.contains('não é um ZIP'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects a ZIP without the EPUB container boundary', () {
+    final archive = Archive()
+      ..addFile(ArchiveFile.string('chapter.xhtml', '<p>Texto</p>'));
+    final bytes = Uint8List.fromList(ZipEncoder().encode(archive));
+
+    expect(
+      () => importer.importBytes(name: 'livro.epub', bytes: bytes),
+      throwsA(
+        predicate<EpubImportException>(
+          (error) => error.message.contains('container.xml'),
+        ),
+      ),
+    );
+  });
 }
 
 void main() {

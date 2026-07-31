@@ -348,6 +348,12 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
         _errorMessage = error.message;
         _importStatus = 'Falha na importação';
       });
+    } on DocumentSelectionException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha ao ler o arquivo selecionado';
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {

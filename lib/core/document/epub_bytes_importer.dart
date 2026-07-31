@@ -16,6 +16,7 @@ class EpubImportException implements Exception {
 }
 
 class EpubBytesImporter {
+  static const int maxImportBytes = 512 * 1024 * 1024;
   const EpubBytesImporter();
 
   EpubBook importDocument(SelectedDocument document) {
@@ -23,8 +24,23 @@ class EpubBytesImporter {
       throw const EpubImportException('Selecione um arquivo com extensão .epub.');
     }
 
+    if (document.bytes.length < 22) {
+      throw const EpubImportException('EPUB inválido: arquivo muito pequeno.');
+    }
+    if (document.bytes.length > maxImportBytes) {
+      throw const EpubImportException('EPUB excede o limite de 512 MB.');
+    }
+    final bytes = document.bytes;
+    final hasZipSignature = bytes[0] == 0x50 && bytes[1] == 0x4B &&
+        ((bytes[2] == 0x03 && bytes[3] == 0x04) ||
+            (bytes[2] == 0x05 && bytes[3] == 0x06) ||
+            (bytes[2] == 0x07 && bytes[3] == 0x08));
+    if (!hasZipSignature) {
+      throw const EpubImportException('EPUB inválido: o arquivo não é um ZIP.');
+    }
+
     try {
-      final archive = ZipDecoder().decodeBytes(document.bytes);
+      final archive = ZipDecoder().decodeBytes(bytes);
       final files = <String, String>{};
       for (final entry in archive) {
         if (entry.isFile) {
