@@ -14,6 +14,8 @@
   - *Status*: **Concluído** (Fase 5 - `lib/core/pipeline/pipeline_orchestrator.dart`).
 - [x] **RF-06 (Coleta de Telemetria / Logs)**: O sistema deve registrar métricas de inferência: tempo de síntese, duração do áudio gerado, cálculo de RTF (Real-Time Factor) e perfil de CPU.
   - *Status*: **Concluído** (Fase 1 e Fase 5 - `lib/core/metrics/rtf_calculator.dart` e `pipeline_result.dart`).
+- [ ] **RF-07 (Navegação estrutural e mídia EPUB)**: O sistema deve apresentar a navegação exatamente conforme o sumário declarado pelo EPUB, preservando ordem, hierarquia e itens auxiliares. Deve renderizar toda imagem referenciada no conteúdo XHTML na posição original, resolvendo recursos internos e caminhos relativos sem rede. O fluxo de PLN/TTS deve receber somente blocos de texto e ignorar integralmente imagens e seus textos alternativos, sem anunciá-los ao usuário.
+  - *Status*: **Planejado**.
 
 ---
 
