@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-08-01T22:36:12.770Z",
+  "phase": "14",
+  "phase_name": "ui-redesign",
+  "phase_dir": ".planning/phases/14-ui-redesign",
+  "plan": "14-04",
+  "task": 0,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "14-02", "name": "Persistência EPUB resistente a colisões", "status": "done", "commit": "5fc8bb0"},
+    {"id": "14-03", "name": "Cancelamento de stream e próxima frase preparada", "status": "done", "commit": "cf5acc7"},
+    {"id": "RF-07", "name": "Primeira fatia de sumário e imagens EPUB", "status": "done", "commit": "013ffaa"}
+  ],
+  "remaining_tasks": [
+    {"id": "14-04", "name": "Progresso durável e estados de biblioteca/importação", "status": "not_started"},
+    {"id": "14-05", "name": "RTF ao vivo no streaming", "status": "not_started"},
+    {"id": "14-06", "name": "MOS, relatório, fila e memória na produção", "status": "not_started"},
+    {"id": "14-07", "name": "UAT Android/Windows e responsividade final", "status": "not_started"},
+    {"id": "RF-07-follow-up", "name": "Suporte toc.ncx e hierarquia visual completa do sumário", "status": "not_started"}
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Executar UAT Android após concluir 14-04 a 14-07", "context": "Métricas reais de RTF, MOS, fila e memória ainda não estão conectadas ao fluxo de produção.", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Pré-carregar no máximo uma próxima frase", "rationale": "Remove a espera de síntese/fila na troca normal sem aumentar memória nem mascarar a latência com delays.", "phase": "14"},
+    {"decision": "Sumário EPUB é a fonte de verdade e imagens permanecem visuais", "rationale": "nav.xhtml deve prevalecer sobre h1; imagens internas são renderizadas e nunca enviadas à TTS.", "phase": "14"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Retomar o plano 14-04; depois executar 14-05 e 14-06 antes de coletar métricas de MVP em Android.",
+  "context_notes": "A pausa entre frases foi validada pelo usuário como muito boa. Imagens EPUB foram testadas pelo usuário e funcionam perfeitamente. A primeira implementação RF-07 usa nav.xhtml, preserva imagens relativas e ignora alt/TTS; ainda falta toc.ncx e níveis hierárquicos visuais."
+}
