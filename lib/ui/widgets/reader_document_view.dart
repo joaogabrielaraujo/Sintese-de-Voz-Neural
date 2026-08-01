@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/text/sentence_model.dart';
+import '../app_theme.dart';
 
 /// Renderiza o capítulo como texto contínuo; as frases recebem apenas uma
 /// marcação visual para sincronização, sem serem transformadas em cartões.
@@ -43,7 +44,10 @@ class _ReaderDocumentViewState extends State<ReaderDocumentView> {
 
     final sentences = widget.sentences;
     if (sentences.isEmpty) {
-      return const Center(child: Text('Nenhum conteúdo para leitura.'));
+      return const Center(
+        child: Text('Nenhum conteúdo para leitura.',
+            style: TextStyle(color: AppColors.paperDim)),
+      );
     }
 
     final spans = <InlineSpan>[];
@@ -57,25 +61,28 @@ class _ReaderDocumentViewState extends State<ReaderDocumentView> {
         TextSpan(
           text: '${sentence.text}${sentence.isParagraphEnd ? '\n\n' : ' '}',
           recognizer: recognizer,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            height: 1.65,
+          style: AppTextStyles.reading.copyWith(
+            color: isActive || isPending ? AppColors.paper : AppColors.paperDim,
             backgroundColor: isActive
-                ? const Color(0xFF6366F1).withOpacity(0.35)
+                ? AppColors.amberDim.withValues(alpha: 0.8)
                 : isPending
-                    ? const Color(0xFFF59E0B).withOpacity(0.25)
+                    ? AppColors.tealDim.withValues(alpha: 0.8)
                     : Colors.transparent,
-            fontWeight: isActive || isPending
-                ? FontWeight.w600
-                : FontWeight.normal,
+            decoration: isActive || isPending ? TextDecoration.underline : null,
+            decorationColor: isActive ? AppColors.amber : AppColors.teal,
+            decorationStyle: isPending
+                ? TextDecorationStyle.dashed
+                : TextDecorationStyle.solid,
+            decorationThickness: 2,
+            fontWeight:
+                isActive || isPending ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
       child: RichText(text: TextSpan(children: spans)),
     );
   }

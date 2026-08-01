@@ -6,9 +6,10 @@ import 'core/config/tts_config.dart';
 import 'core/engine/composite_tts_engine.dart';
 import 'core/engine/tts_engine_type.dart';
 import 'core/document/epub_model.dart';
-import 'core/document/epub_parser.dart';
 import 'core/document/epub_bytes_importer.dart';
 import 'core/document/selected_document.dart';
+import 'core/document/saved_book.dart';
+import 'core/document/saved_book_repository.dart';
 import 'core/memory/circular_audio_buffer.dart';
 import 'core/memory/sentence_audio_item.dart';
 import 'core/metrics/mos_rating_model.dart';
@@ -16,10 +17,12 @@ import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
 import 'core/text/sentence_segmenter.dart';
 import 'core/text/sentence_model.dart';
-import 'ui/widgets/audio_player_control_bar.dart';
 import 'ui/widgets/mos_evaluation_dialog.dart';
-import 'ui/widgets/sentence_highlight_view.dart';
-import 'ui/widgets/reader_document_view.dart';
+import 'ui/app_theme.dart';
+import 'ui/widgets/library_view.dart';
+import 'ui/widgets/reader_page.dart';
+import 'ui/widgets/responsive_navigation_shell.dart';
+import 'ui/widgets/settings_view.dart';
 
 void main() {
   runApp(const TCCNeuralApp());
@@ -34,13 +37,7 @@ class TCCNeuralApp extends StatelessWidget {
     return MaterialApp(
       title: 'TCC - Leitor EPUB Neural & Player de Áudio',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F172A), // Slate Escuro
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1), // Índigo
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.dark(),
       home: const PoCNeuralHomePage(),
     );
   }
@@ -60,7 +57,8 @@ class PoCNeuralHomePage extends StatefulWidget {
   State<PoCNeuralHomePage> createState() => _PoCNeuralHomePageState();
 }
 
-class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
+class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
+    with WidgetsBindingObserver {
   static const _selectableEngineTypes = <TTSEngineType>[
     TTSEngineType.autoFailover,
     TTSEngineType.sherpaOnnx,
@@ -77,14 +75,18 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   bool _isProcessing = false;
   PipelineResult? _lastResult;
   String? _errorMessage;
-  String _importStatus = 'Livro de demonstração carregado';
+  String _importStatus = 'Nenhum EPUB carregado';
   CircularAudioBuffer? _streamQueue;
   StreamIterator<SentenceAudioItem>? _streamIterator;
   SentenceAudioItem? _activeStreamingItem;
   List<String> _chapterSentences = [];
   List<TextSentence> _chapterSentenceModels = [];
+  Map<int, List<TextSentence>> _chapterSentenceCache = {};
+  List<int> _chapterSentenceCounts = [];
   int? _pendingSentenceIndex;
   bool _isReaderOpen = false;
+  AppDestination _destination = AppDestination.library;
+  String _searchQuery = '';
   bool _isStreaming = false;
   bool _isAdvancingStream = false;
   bool _completionHandledForActiveItem = false;
@@ -102,10 +104,17 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   StreamSubscription<Duration?>? _durSub;
 
   final List<MOSRating> _savedMOSRatings = [];
+  final SavedBookRepository _savedBookRepository = SavedBookRepository();
+  List<SavedBookRecord> _savedBooks = [];
+  SavedBookRecord? _activeSavedBook;
+  Timer? _progressSaveTimer;
+  SavedBookRecord? _pendingProgressRecord;
+  Future<void>? _progressWriteFuture;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Instancia o CompositeTTSEngine resiliente com Failover Automático
     _engine = CompositeTTSEngine(config: TTSConfig.defaultPtBr());
     _orchestrator = PipelineOrchestrator(engine: _engine);
@@ -114,7 +123,16 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     _audioPlayer = AudioPlayerService();
 
     _initAudioListeners();
-    _loadSampleEpub();
+    unawaited(_loadSavedBooks());
+  }
+
+  Future<void> _loadSavedBooks() async {
+    try {
+      final books = await _savedBookRepository.list();
+      if (mounted) setState(() => _savedBooks = books);
+    } on Object {
+      // A biblioteca vazia continua utilizável se o armazenamento não estiver disponível.
+    }
   }
 
   void _initAudioListeners() {
@@ -152,6 +170,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       if (pos < timeline[i].end || i == timeline.length - 1) {
         if (_activeSentenceIndex != i) {
           setState(() => _activeSentenceIndex = i);
+          unawaited(_persistReadingProgress());
         }
         return;
       }
@@ -160,6 +179,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _progressSaveTimer?.cancel();
+    unawaited(_persistReadingProgress());
+    unawaited(_flushProgressWrites());
     unawaited(_stopStreamingPipeline());
     _stateSub?.cancel();
     _posSub?.cancel();
@@ -169,68 +192,147 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     super.dispose();
   }
 
-  void _loadSampleEpub() {
-    final Map<String, String> mockEpubArchive = {
-      'META-INF/container.xml': '''
-        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-          <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles>
-        </container>
-      ''',
-      'OEBPS/content.opf': '''
-        <package version="3.0">
-          <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-            <dc:title>Síntese de Voz Neural em Edge Computing</dc:title>
-            <dc:creator>João Gabriel A. Almeida</dc:creator>
-            <dc:language>pt-BR</dc:language>
-          </metadata>
-          <manifest>
-            <item id="chap1" href="chap1.xhtml"/>
-            <item id="chap2" href="chap2.xhtml"/>
-          </manifest>
-          <spine>
-            <itemref idref="chap1"/>
-            <itemref idref="chap2"/>
-          </spine>
-        </package>
-      ''',
-      'OEBPS/chap1.xhtml': r'''
-        <html>
-          <body>
-            <h1>Capítulo 1: Fundamentação e Objetivos</h1>
-            <p>Em 24/07/2026, o Dr. Matheus aprovou a 1ª versão do TCC na UEFS custando R$ 150,00.</p>
-            <p>A síntese de voz neural opera 100% offline no dispositivo móvel com RTF &lt; 1.0! Esta arquitetura garante consumo constante de memória RAM.</p>
-          </body>
-        </html>
-      ''',
-      'OEBPS/chap2.xhtml': '''
-        <html>
-          <body>
-            <h1>Capítulo 2: Arquitetura Modular</h1>
-            <p>Os módulos core foram desenvolvidos em Dart e divididos em 4 camadas desacopladas.</p>
-          </body>
-        </html>
-      ''',
-    };
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_persistReadingProgress());
+      unawaited(_flushProgressWrites());
+    }
+  }
 
-    final EpubBook book = EpubParser.parseArchive(mockEpubArchive);
-    setState(() {
-      _loadedBook = book;
-      _currentChapter = book.chapterOne;
-      _prepareChapterSentences();
+  Future<void> _persistReadingProgress() async {
+    final record = _activeSavedBook;
+    final book = _loadedBook;
+    final chapter = _currentChapter;
+    if (record == null || book == null || chapter == null) return;
+
+    final currentCount = _chapterSentenceModels.length;
+    final beforeCount = _chapterSentenceCounts
+        .take(chapter.index)
+        .fold<int>(0, (sum, count) => sum + count);
+    final totalCount = _chapterSentenceCounts.fold<int>(
+      0,
+      (sum, count) => sum + count,
+    );
+    final completedInChapter = currentCount == 0
+        ? 0
+        : (_activeSentenceIndex + 1).clamp(0, currentCount).toInt();
+    final absolute = beforeCount + completedInChapter;
+    final updated = record.copyWith(
+      chapterIndex: chapter.index,
+      sentenceIndex: _activeSentenceIndex,
+      progress: totalCount == 0
+          ? 0
+          : (absolute / totalCount).clamp(0.0, 1.0).toDouble(),
+      updatedAt: DateTime.now(),
+    );
+    _activeSavedBook = updated;
+    _pendingProgressRecord = updated;
+    _savedBooks = [
+      updated,
+      ..._savedBooks.where((item) => item.id != updated.id),
+    ];
+    if (mounted && !_isReaderOpen) setState(() {});
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = Timer(const Duration(seconds: 1), () {
+      unawaited(_flushProgressWrites());
     });
+  }
+
+  Future<void> _flushProgressWrites() async {
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = null;
+    if (_progressWriteFuture != null) {
+      await _progressWriteFuture;
+      return;
+    }
+    final future = _drainProgressWrites();
+    _progressWriteFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_progressWriteFuture, future)) _progressWriteFuture = null;
+    }
+  }
+
+  Future<void> _drainProgressWrites() async {
+    while (_pendingProgressRecord != null) {
+      final record = _pendingProgressRecord!;
+      _pendingProgressRecord = null;
+      await _savedBookRepository.update(record);
+    }
+  }
+
+  Future<void> _openSavedBook(SavedBookRecord record) async {
+    final saved = await _savedBookRepository.load(record.id);
+    if (saved == null) {
+      await _loadSavedBooks();
+      return;
+    }
+    try {
+      final book = widget.importer.importBytes(
+        name: saved.record.fileName,
+        bytes: saved.bytes,
+      );
+      final chapterIndex =
+          saved.record.chapterIndex.clamp(0, book.chapters.length - 1).toInt();
+      setState(() {
+        _loadedBook = book;
+        _buildChapterSentenceCache();
+        _activeSavedBook = saved.record;
+        _currentChapter = book.chapters[chapterIndex];
+        _prepareChapterSentences();
+        _activeSentenceIndex = saved.record.sentenceIndex
+            .clamp(
+              0,
+              _chapterSentenceModels.isEmpty
+                  ? 0
+                  : _chapterSentenceModels.length - 1,
+            )
+            .toInt();
+        _pendingSentenceIndex = null;
+        _lastResult = null;
+        _isReaderOpen = true;
+      });
+    } on Object catch (error) {
+      if (mounted) setState(() => _errorMessage = error.toString());
+    }
   }
 
   void _prepareChapterSentences() {
     final chapter = _currentChapter;
+    if (_chapterSentenceCache.isEmpty && _loadedBook != null) {
+      _buildChapterSentenceCache();
+    }
     _chapterSentenceModels = chapter == null
         ? []
-        : SentenceSegmenter.segment(chapter.cleanText);
+        : _chapterSentenceCache[chapter.index] ?? const <TextSentence>[];
     _chapterSentences = _chapterSentenceModels
         .map((sentence) => sentence.text)
         .toList(growable: false);
   }
 
+  void _buildChapterSentenceCache() {
+    final book = _loadedBook;
+    if (book == null) {
+      _chapterSentenceCache = {};
+      _chapterSentenceCounts = [];
+      return;
+    }
+    _chapterSentenceCache = {
+      for (final chapter in book.chapters)
+        chapter.index: SentenceSegmenter.segment(chapter.cleanText),
+    };
+    _chapterSentenceCounts = book.chapters
+        .map((chapter) => _chapterSentenceCache[chapter.index]!.length)
+        .toList(growable: false);
+  }
+
   void _closeReader() {
+    unawaited(_persistReadingProgress());
+    unawaited(_flushProgressWrites());
     unawaited(_stopStreamingPipeline());
     unawaited(_audioPlayer.stop());
     setState(() {
@@ -324,6 +426,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
           _isProcessing = false;
         });
       }
+      unawaited(_persistReadingProgress());
       await _audioPlayer.play();
     } catch (error) {
       _isStreaming = false;
@@ -371,10 +474,43 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       setState(() => _importStatus = 'Lendo EPUB...');
       final book = widget.importer.importDocument(selected);
       if (!mounted) return;
+      SavedBookRecord? savedRecord;
+      try {
+        savedRecord = await _savedBookRepository.saveNew(
+          fileName: selected.name,
+          bytes: selected.bytes,
+          book: book,
+        );
+      } on Object {
+        // A leitura desta sessão não depende do armazenamento persistente.
+      }
+      final restoredChapter = savedRecord != null && book.chapters.isNotEmpty
+          ? book.chapters[savedRecord.chapterIndex
+              .clamp(0, book.chapters.length - 1)
+              .toInt()]
+          : book.chapterOne;
       setState(() {
         _loadedBook = book;
-        _currentChapter = book.chapterOne;
+        _chapterSentenceCache = {};
+        _activeSavedBook = savedRecord;
+        final storedRecord = savedRecord;
+        if (storedRecord != null) {
+          _savedBooks = [
+            storedRecord,
+            ..._savedBooks.where((item) => item.id != storedRecord.id),
+          ];
+        }
+        _currentChapter = restoredChapter;
         _prepareChapterSentences();
+        _activeSentenceIndex = savedRecord?.sentenceIndex
+                .clamp(
+                  0,
+                  _chapterSentenceModels.isEmpty
+                      ? 0
+                      : _chapterSentenceModels.length - 1,
+                )
+                .toInt() ??
+            0;
         _pendingSentenceIndex = null;
         _isReaderOpen = true;
         _lastResult = null;
@@ -457,460 +593,140 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   Widget _buildReaderScaffold() {
     final chapter = _currentChapter;
-    if (chapter == null) return const SizedBox.shrink();
+    final book = _loadedBook;
+    if (chapter == null || book == null) return const SizedBox.shrink();
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Voltar para o início',
-          onPressed: _closeReader,
+    void playPause() {
+      if (_audioState == TTSAudioState.playing) {
+        unawaited(_audioPlayer.pause());
+      } else if (!_isStreaming) {
+        unawaited(_runMvpPipeline(startSentenceIndex: _activeSentenceIndex));
+      } else {
+        unawaited(_audioPlayer.play());
+      }
+    }
+
+    return ReaderPage(
+      book: book,
+      chapter: chapter,
+      sentences: _chapterSentenceModels,
+      activeIndex: _activeSentenceIndex,
+      pendingIndex: _pendingSentenceIndex,
+      isProcessing: _isProcessing,
+      synthesisStatus: _importStatus,
+      rtf: _lastResult?.overallRtf,
+      playerService: _audioPlayer,
+      audioState: _audioState,
+      currentPosition: _currentPosition,
+      totalDuration: _totalDuration,
+      currentSpeed: _currentSpeed,
+      onBack: _closeReader,
+      onChapterChanged: (selected) {
+        unawaited(_stopStreamingPipeline());
+        unawaited(_audioPlayer.stop());
+        setState(() {
+          _currentChapter = selected;
+          _prepareChapterSentences();
+          _pendingSentenceIndex = null;
+          _activeSentenceIndex = 0;
+        });
+        unawaited(_persistReadingProgress());
+      },
+      onSentenceSelected: _selectSentence,
+      onCancelSelection: () => setState(() => _pendingSentenceIndex = null),
+      onConfirmSelection: () => unawaited(_confirmSentenceSelection()),
+      onPlayPause: playPause,
+      onStop: () {
+        unawaited(_stopStreamingPipeline());
+        unawaited(_audioPlayer.stop());
+      },
+      onSeek: (position) => unawaited(_audioPlayer.seek(position)),
+      onSpeedChanged: (speed) {
+        setState(() => _currentSpeed = speed);
+        unawaited(_audioPlayer.setSpeed(speed));
+      },
+      onOpenMos: _showMOSDialog,
+    );
+  }
+
+  Future<void> _deleteSavedBook(SavedBookRecord record) async {
+    await _savedBookRepository.delete(record.id);
+    if (!mounted) return;
+    setState(() {
+      _savedBooks = _savedBooks
+          .where((item) => item.id != record.id)
+          .toList(growable: false);
+      if (_activeSavedBook?.id == record.id) {
+        _activeSavedBook = null;
+        _loadedBook = null;
+        _currentChapter = null;
+        _chapterSentenceCache = {};
+        _chapterSentenceCounts = [];
+      }
+    });
+  }
+
+  Widget _buildDestinationBody() {
+    if (_destination == AppDestination.settings) {
+      return SettingsView(
+        engineTypes: _selectableEngineTypes,
+        selectedType: _engine.selectedType,
+        activeEngineLabel:
+            _engine.activeType?.label ?? 'Nenhum motor inicializado',
+        isProcessing: _isProcessing,
+        onEngineChanged: (type) => unawaited(_switchEngine(type)),
+      );
+    }
+    return LibraryView(
+      books: _savedBooks,
+      importStatus: _importStatus,
+      engineStatus: _engine.activeType?.label ?? _engine.selectedType.label,
+      errorMessage: _errorMessage,
+      isProcessing: _isProcessing,
+      searchMode: _destination == AppDestination.search,
+      searchQuery: _searchQuery,
+      onSearchChanged: (query) => setState(() => _searchQuery = query),
+      onImport: () => unawaited(_importEpub()),
+      onOpenBook: (record) => unawaited(_openSavedBook(record)),
+      onDeleteBook: (record) => unawaited(_deleteSavedBook(record)),
+    );
+  }
+
+  PreferredSizeWidget _buildHomeAppBar() {
+    return AppBar(
+      title: const Text('VozLume'),
+      actions: [
+        if (_savedMOSRatings.isNotEmpty)
+          Chip(
+            avatar: const Icon(Icons.star, color: AppColors.amber, size: 16),
+            label: Text(
+              'MOS ${(_savedMOSRatings.map((rating) => rating.averageScore).reduce((a, b) => a + b) / _savedMOSRatings.length).toStringAsFixed(2)}',
+            ),
+          ),
+        if (_lastResult != null)
+          IconButton(
+            icon: const Icon(Icons.assignment_outlined, color: AppColors.teal),
+            tooltip: 'Ver relatório de desempenho',
+            onPressed: _showAcademicReportDialog,
+          ),
+        IconButton(
+          icon: const Icon(Icons.info_outline, color: AppColors.paperDim),
+          tooltip: 'Sobre a arquitetura',
+          onPressed: _showArchitectureInfo,
         ),
-        title: Text(
-          chapter.title,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButton<EpubChapter>(
-                    value: chapter,
-                    isExpanded: true,
-                    dropdownColor: const Color(0xFF1E293B),
-                    items: _loadedBook!.chapters
-                        .map((item) => DropdownMenuItem<EpubChapter>(
-                              value: item,
-                              child: Text(item.title),
-                            ))
-                        .toList(),
-                    onChanged: (selected) {
-                      if (selected == null) return;
-                      unawaited(_stopStreamingPipeline());
-                      unawaited(_audioPlayer.stop());
-                      setState(() {
-                        _currentChapter = selected;
-                        _prepareChapterSentences();
-                        _pendingSentenceIndex = null;
-                        _activeSentenceIndex = 0;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${chapter.wordCount} palavras',
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ReaderDocumentView(
-              sentences: _chapterSentenceModels,
-              activeIndex: _activeSentenceIndex,
-              pendingIndex: _pendingSentenceIndex,
-              onSentenceTap: _selectSentence,
-            ),
-          ),
-          if (_pendingSentenceIndex != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => setState(() => _pendingSentenceIndex = null),
-                      child: const Text('Cancelar seleção'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isProcessing ? null : _confirmSentenceSelection,
-                      icon: const Icon(Icons.play_arrow),
-                      label: Text('Continuar da frase ${_pendingSentenceIndex! + 1}'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: AudioPlayerControlBar(
-              playerService: _audioPlayer,
-              currentState: _audioState,
-              currentPosition: _currentPosition,
-              totalDuration: _totalDuration,
-              currentSpeed: _currentSpeed,
-              onPlayPausePressed: () {
-                if (_audioState == TTSAudioState.playing) {
-                  _audioPlayer.pause();
-                } else if (!_isStreaming) {
-                  _runMvpPipeline(startSentenceIndex: _activeSentenceIndex);
-                } else {
-                  _audioPlayer.play();
-                }
-              },
-              onStopPressed: () {
-                unawaited(_stopStreamingPipeline());
-                unawaited(_audioPlayer.stop());
-              },
-              onSeekChanged: (position) => _audioPlayer.seek(position),
-              onSpeedChanged: (speed) {
-                setState(() => _currentSpeed = speed);
-                _audioPlayer.setSpeed(speed);
-              },
-              onOpenMOSDialog: _showMOSDialog,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isReaderOpen) return _buildReaderScaffold();
-
-    final sentencesList = _chapterSentences.isNotEmpty
-        ? _chapterSentences
-        : (_lastResult?.items.map((i) => i.normalizedText).toList() ?? []);
-    final activeEngineLabel =
-        _engine.activeType?.label ?? 'Nenhum motor inicializado';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Leitor EPUB & Player Neural (TCC UEFS)',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        elevation: 0,
-        backgroundColor: const Color(0xFF1E293B),
-        actions: [
-          if (_savedMOSRatings.isNotEmpty)
-            Chip(
-              avatar: const Icon(
-                Icons.star,
-                color: Color(0xFFF59E0B),
-                size: 16,
-              ),
-              label: Text(
-                'MOS: ${(_savedMOSRatings.map((r) => r.averageScore).reduce((a, b) => a + b) / _savedMOSRatings.length).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              backgroundColor: const Color(0xFF334155),
-            ),
-          if (_lastResult != null)
-            IconButton(
-              icon: const Icon(
-                Icons.assignment_outlined,
-                color: Color(0xFF34D399),
-              ),
-              tooltip: 'Ver Relatório para o Orientador',
-              onPressed: _showAcademicReportDialog,
-            ),
-          IconButton(
-            icon: const Icon(Icons.info_outline, color: Color(0xFF818CF8)),
-            onPressed: _showArchitectureInfo,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Banner do Livro EPUB (Fase 4)
-            if (_loadedBook != null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFF6366F1),
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.auto_stories,
-                          color: Color(0xFF818CF8),
-                          size: 26,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _loadedBook!.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Autor: ${_loadedBook!.author} | UEFS 2026',
-                                style: const TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 16, color: Color(0xFF334155)),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        DropdownButton<EpubChapter>(
-                          value: _currentChapter,
-                          dropdownColor: const Color(0xFF1E293B),
-                          style: const TextStyle(
-                            color: Color(0xFF38BDF8),
-                            fontWeight: FontWeight.bold,
-                          ),
-                          items: _loadedBook!.chapters.map((chap) {
-                            return DropdownMenuItem(
-                              value: chap,
-                              child: Text(chap.title),
-                            );
-                          }).toList(),
-                          onChanged: (selected) {
-                            if (selected != null) {
-                              setState(() {
-                                _currentChapter = selected;
-                                _prepareChapterSentences();
-                                _pendingSentenceIndex = null;
-                                _lastResult = null;
-                                unawaited(_stopStreamingPipeline());
-                                _audioPlayer.stop();
-                              });
-                            }
-                          },
-                        ),
-                        Text(
-                          '${_currentChapter?.wordCount ?? 0} palavras',
-                          style: const TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _isProcessing ? null : _importEpub,
-              icon: const Icon(Icons.file_open),
-              label: const Text('Importar EPUB do dispositivo'),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _importStatus,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
-            ),
-
-            // Indicador de Motor TTS Neural Ativo
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.record_voice_over,
-                    color: Color(0xFF38BDF8),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Motor:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButton<TTSEngineType>(
-                      value: _engine.selectedType,
-                      isExpanded: true,
-                      dropdownColor: const Color(0xFF1E293B),
-                      items: _selectableEngineTypes
-                          .map(
-                            (type) => DropdownMenuItem(
-                              value: type,
-                              child: Text(
-                                type.label,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _isProcessing
-                          ? null
-                          : (type) {
-                              if (type != null) _switchEngine(type);
-                            },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Ativo: $activeEngineLabel',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF38BDF8),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Botão Sintetizar Capítulo
-            ElevatedButton.icon(
-              onPressed: _isProcessing ? null : _runMvpPipeline,
-              icon: _isProcessing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.play_arrow_rounded, size: 24),
-              label: Text(
-                _isProcessing
-                    ? 'Sintetizando Capítulo em Tempo Real...'
-                    : 'Sintetizar & Reproduzir Áudio Neural',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF7F1D1D),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Erro: $_errorMessage',
-                  style: const TextStyle(color: Color(0xFFFCA5A5)),
-                ),
-              ),
-            ],
-
-            // ÁREA PRINCIPAL: Sentenças em destaque + Player de Áudio
-            if (_isStreaming || _lastResult != null || sentencesList.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Expanded(
-                child: SentenceHighlightView(
-                  sentences: sentencesList,
-                  activeIndex: _activeSentenceIndex,
-                  pendingIndex: _pendingSentenceIndex,
-                  onSentenceTap: _selectSentence,
-                ),
-              ),
-              if (_pendingSentenceIndex != null) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => setState(() => _pendingSentenceIndex = null),
-                        icon: const Icon(Icons.close),
-                        label: const Text('Cancelar seleção'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isProcessing ? null : _confirmSentenceSelection,
-                        icon: const Icon(Icons.play_arrow),
-                        label: Text(
-                          'Continuar da frase ${_pendingSentenceIndex! + 1}',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              AudioPlayerControlBar(
-                playerService: _audioPlayer,
-                currentState: _audioState,
-                currentPosition: _currentPosition,
-                totalDuration: _totalDuration,
-                currentSpeed: _currentSpeed,
-                onPlayPausePressed: () {
-                  if (_audioState == TTSAudioState.playing) {
-                    _audioPlayer.pause();
-                  } else {
-                    _audioPlayer.play();
-                  }
-                },
-                onStopPressed: () {
-                  unawaited(_stopStreamingPipeline());
-                  unawaited(_audioPlayer.stop());
-                  if (mounted) setState(() => _isProcessing = false);
-                },
-                onSeekChanged: (pos) => _audioPlayer.seek(pos),
-                onSpeedChanged: (speed) {
-                  setState(() => _currentSpeed = speed);
-                  _audioPlayer.setSpeed(speed);
-                },
-                onOpenMOSDialog: _showMOSDialog,
-              ),
-            ],
-          ],
-        ),
-      ),
+    return ResponsiveNavigationShell(
+      destination: _destination,
+      onDestinationChanged: (destination) =>
+          setState(() => _destination = destination),
+      appBar: _buildHomeAppBar(),
+      body: _buildDestinationBody(),
     );
   }
 
@@ -955,14 +771,14 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24.0),
+      builder: (context) => const Padding(
+        padding: EdgeInsets.all(24.0),
         child: DefaultTextStyle(
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'Fase 6: Audio Player & MOS Evaluation (Milestone 2)',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
