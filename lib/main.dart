@@ -46,11 +46,15 @@ class TCCNeuralApp extends StatelessWidget {
 class PoCNeuralHomePage extends StatefulWidget {
   final EpubDocumentPicker picker;
   final EpubBytesImporter importer;
+  final PipelineOrchestrator? orchestrator;
+  final IAudioPlayerService? audioPlayer;
 
   const PoCNeuralHomePage({
     super.key,
     this.picker = const NativeEpubDocumentPicker(),
     this.importer = const EpubBytesImporter(),
+    this.orchestrator,
+    this.audioPlayer,
   });
 
   @override
@@ -90,6 +94,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
   bool _isStreaming = false;
   bool _isAdvancingStream = false;
   bool _completionHandledForActiveItem = false;
+  int _streamGeneration = 0;
+  Future<void> _streamTransitionFuture = Future<void>.value();
+  Future<void>? _preparedStreamingFuture;
+  SentenceAudioItem? _preparedStreamingItem;
 
   // Estados do Player de Áudio
   TTSAudioState _audioState = TTSAudioState.stopped;
@@ -117,10 +125,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     WidgetsBinding.instance.addObserver(this);
     // Instancia o CompositeTTSEngine resiliente com Failover Automático
     _engine = CompositeTTSEngine(config: TTSConfig.defaultPtBr());
-    _orchestrator = PipelineOrchestrator(engine: _engine);
+    _orchestrator = widget.orchestrator ?? PipelineOrchestrator(engine: _engine);
 
     // Usa AudioPlayerService nativo para reprodução de áudio real
-    _audioPlayer = AudioPlayerService();
+    _audioPlayer = widget.audioPlayer ?? AudioPlayerService();
 
     _initAudioListeners();
     unawaited(_loadSavedBooks());
@@ -142,7 +150,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
           _isStreaming &&
           !_completionHandledForActiveItem) {
         _completionHandledForActiveItem = true;
-        unawaited(_advanceStreamingSentence());
+        unawaited(_handleAudioCompleted());
       }
     });
 
@@ -330,14 +338,30 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
         .toList(growable: false);
   }
 
-  void _closeReader() {
-    unawaited(_persistReadingProgress());
-    unawaited(_flushProgressWrites());
-    unawaited(_stopStreamingPipeline());
-    unawaited(_audioPlayer.stop());
-    setState(() {
-      _isReaderOpen = false;
-      _pendingSentenceIndex = null;
+  Future<void> _closeReader() async {
+    await _persistReadingProgress();
+    await _flushProgressWrites();
+    await _serializeStreamTransition(() async {
+      await _stopStreamingPipelineUnlocked();
+      if (!mounted) return;
+      setState(() {
+        _isReaderOpen = false;
+        _pendingSentenceIndex = null;
+      });
+    });
+  }
+
+  Future<void> _changeChapter(EpubChapter chapter) {
+    return _serializeStreamTransition(() async {
+      await _stopStreamingPipelineUnlocked();
+      if (!mounted) return;
+      setState(() {
+        _currentChapter = chapter;
+        _prepareChapterSentences();
+        _pendingSentenceIndex = null;
+        _activeSentenceIndex = 0;
+      });
+      await _persistReadingProgress();
     });
   }
 
@@ -353,13 +377,13 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     await _runMvpPipeline(startSentenceIndex: selected);
   }
 
-  Future<void> _runMvpPipeline({int startSentenceIndex = 0}) async {
+  Future<void> _runMvpPipelineUnlocked({int startSentenceIndex = 0}) async {
     if (_loadedBook == null || _currentChapter == null) return;
 
     if (!_isReaderOpen) {
       setState(() => _isReaderOpen = true);
     }
-    await _stopStreamingPipeline();
+    await _stopStreamingPipelineUnlocked();
     final queue = CircularAudioBuffer(maxItems: 3);
     final iterator = StreamIterator<SentenceAudioItem>(
       _orchestrator.processChapterStream(
@@ -381,10 +405,15 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       _isStreaming = true;
     });
 
-    await _advanceStreamingSentence();
+    await _advanceStreamingSentence(
+      _streamGeneration,
+      iterator,
+      queue,
+    );
   }
 
-  Future<void> _advanceStreamingSentence() async {
+  // ignore: unused_element
+  Future<void> _advanceStreamingSentenceLegacy() async {
     if (_isAdvancingStream || !_isStreaming) return;
     _isAdvancingStream = true;
     try {
@@ -443,20 +472,175 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     }
   }
 
-  Future<void> _stopStreamingPipeline() async {
+  Future<void> _stopStreamingPipelineUnlocked() async {
+    ++_streamGeneration;
     _isStreaming = false;
     final active = _activeStreamingItem;
+    final prepared = _preparedStreamingItem;
     final iterator = _streamIterator;
     final queue = _streamQueue;
     _streamIterator = null;
     _streamQueue = null;
     _activeStreamingItem = null;
+    _preparedStreamingItem = null;
+    _preparedStreamingFuture = null;
     if (active != null) {
       queue?.release(active);
     }
+    if (prepared != null && !identical(prepared, active)) {
+      queue?.release(prepared);
+    }
     queue?.cancel();
     if (iterator != null) await iterator.cancel();
+    await _audioPlayer.stop();
     queue?.dispose();
+  }
+
+  Future<void> _serializeStreamTransition(Future<void> Function() action) {
+    final operation = _streamTransitionFuture.then<void>(
+      (_) => action(),
+      onError: (_, __) => action(),
+    );
+    _streamTransitionFuture = operation.catchError((_) {});
+    return operation;
+  }
+
+  Future<void> _runMvpPipeline({int startSentenceIndex = 0}) {
+    return _serializeStreamTransition(
+      () => _runMvpPipelineUnlocked(startSentenceIndex: startSentenceIndex),
+    );
+  }
+
+  Future<void> _stopStreamingPipeline() {
+    return _serializeStreamTransition(_stopStreamingPipelineUnlocked);
+  }
+
+  bool _isCurrentStream(
+    int generation,
+    StreamIterator<SentenceAudioItem> iterator,
+    CircularAudioBuffer queue,
+  ) =>
+      mounted &&
+      _isStreaming &&
+      generation == _streamGeneration &&
+      identical(iterator, _streamIterator) &&
+      identical(queue, _streamQueue);
+
+  Future<void> _advanceStreamingSentence(
+    int generation,
+    StreamIterator<SentenceAudioItem> iterator,
+    CircularAudioBuffer queue,
+  ) async {
+    if (!_isCurrentStream(generation, iterator, queue)) return;
+    try {
+      SentenceAudioItem? item;
+      final preparation = _preparedStreamingFuture;
+      if (preparation == null) {
+        final hasNext = await iterator.moveNext();
+        if (!_isCurrentStream(generation, iterator, queue)) return;
+        if (hasNext) item = iterator.current;
+      } else {
+        await preparation;
+        if (!_isCurrentStream(generation, iterator, queue)) return;
+        item = _preparedStreamingItem;
+        _preparedStreamingItem = null;
+        _preparedStreamingFuture = null;
+      }
+      if (item == null) {
+        await _finishStreamingSentence(generation, iterator, queue);
+        return;
+      }
+      await _playStreamingItem(generation, iterator, queue, item);
+    } catch (error) {
+      if (!_isCurrentStream(generation, iterator, queue)) return;
+      await _stopStreamingPipelineUnlocked();
+      if (mounted && generation != _streamGeneration) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = error.toString();
+          _importStatus = 'Falha durante a leitura';
+        });
+      }
+    }
+  }
+
+  Future<void> _playStreamingItem(
+    int generation,
+    StreamIterator<SentenceAudioItem> iterator,
+    CircularAudioBuffer queue,
+    SentenceAudioItem item,
+  ) async {
+    if (!_isCurrentStream(generation, iterator, queue)) {
+      queue.release(item);
+      return;
+    }
+    final previous = _activeStreamingItem;
+    if (previous != null) queue.release(previous);
+    _activeStreamingItem = item;
+    _completionHandledForActiveItem = false;
+    await _audioPlayer.loadAudioBuffer(item.audio);
+    if (!_isCurrentStream(generation, iterator, queue) ||
+        !identical(item, _activeStreamingItem)) {
+      return;
+    }
+    setState(() {
+      _activeSentenceIndex = item.rawSentence.index;
+      _importStatus = 'Frase ${item.rawSentence.index + 1} em reprodução';
+      _isProcessing = false;
+    });
+    unawaited(_persistReadingProgress());
+    await _audioPlayer.play();
+    if (!_isCurrentStream(generation, iterator, queue) ||
+        !identical(item, _activeStreamingItem)) {
+      return;
+    }
+    _preparedStreamingFuture = _prepareNextStreamingItem(
+      generation,
+      iterator,
+      queue,
+    );
+  }
+
+  Future<void> _prepareNextStreamingItem(
+    int generation,
+    StreamIterator<SentenceAudioItem> iterator,
+    CircularAudioBuffer queue,
+  ) async {
+    final hasNext = await iterator.moveNext();
+    if (!_isCurrentStream(generation, iterator, queue)) return;
+    if (hasNext) {
+      _preparedStreamingItem = iterator.current;
+    }
+  }
+
+  Future<void> _handleAudioCompleted() async {
+    final generation = _streamGeneration;
+    final iterator = _streamIterator;
+    final queue = _streamQueue;
+    final active = _activeStreamingItem;
+    if (iterator == null || queue == null || active == null ||
+        !_isCurrentStream(generation, iterator, queue) ||
+        !identical(active, _activeStreamingItem)) {
+      return;
+    }
+    await _advanceStreamingSentence(generation, iterator, queue);
+  }
+
+  Future<void> _finishStreamingSentence(
+    int generation,
+    StreamIterator<SentenceAudioItem> iterator,
+    CircularAudioBuffer queue,
+  ) async {
+    if (!_isCurrentStream(generation, iterator, queue)) {
+      return;
+    }
+    await _stopStreamingPipelineUnlocked();
+    if (mounted && generation != _streamGeneration) {
+      setState(() {
+        _isProcessing = false;
+        _importStatus = 'Leitura concluída';
+      });
+    }
   }
 
   Future<void> _importEpub() async {
@@ -544,7 +728,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
   }
 
   Future<void> _switchEngine(TTSEngineType type) async {
-    await _audioPlayer.stop();
+    await _stopStreamingPipeline();
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
@@ -620,26 +804,13 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       currentPosition: _currentPosition,
       totalDuration: _totalDuration,
       currentSpeed: _currentSpeed,
-      onBack: _closeReader,
-      onChapterChanged: (selected) {
-        unawaited(_stopStreamingPipeline());
-        unawaited(_audioPlayer.stop());
-        setState(() {
-          _currentChapter = selected;
-          _prepareChapterSentences();
-          _pendingSentenceIndex = null;
-          _activeSentenceIndex = 0;
-        });
-        unawaited(_persistReadingProgress());
-      },
+      onBack: () => unawaited(_closeReader()),
+      onChapterChanged: (selected) => unawaited(_changeChapter(selected)),
       onSentenceSelected: _selectSentence,
       onCancelSelection: () => setState(() => _pendingSentenceIndex = null),
       onConfirmSelection: () => unawaited(_confirmSentenceSelection()),
       onPlayPause: playPause,
-      onStop: () {
-        unawaited(_stopStreamingPipeline());
-        unawaited(_audioPlayer.stop());
-      },
+      onStop: () => unawaited(_stopStreamingPipeline()),
       onSeek: (position) => unawaited(_audioPlayer.seek(position)),
       onSpeedChanged: (speed) {
         setState(() => _currentSpeed = speed);
