@@ -84,11 +84,13 @@ class PipelineOrchestrator {
     required EpubChapter chapter,
     CircularAudioBuffer? queue,
     int maxSentenceLength = 180,
+    int startSentenceIndex = 0,
   }) async* {
     if (queue == null) {
       yield* _synthesizeChapterStream(
         chapter: chapter,
         maxSentenceLength: maxSentenceLength,
+        startSentenceIndex: startSentenceIndex,
       );
       return;
     }
@@ -100,6 +102,7 @@ class PipelineOrchestrator {
         await for (final item in _synthesizeChapterStream(
           chapter: chapter,
           maxSentenceLength: maxSentenceLength,
+          startSentenceIndex: startSentenceIndex,
         )) {
           await queue.enqueue(item);
         }
@@ -126,6 +129,7 @@ class PipelineOrchestrator {
   Stream<SentenceAudioItem> _synthesizeChapterStream({
     required EpubChapter chapter,
     required int maxSentenceLength,
+    required int startSentenceIndex,
   }) async* {
     if (!engine.isInitialized) {
       await engine.initialize();
@@ -137,6 +141,7 @@ class PipelineOrchestrator {
     );
 
     for (final TextSentence rawSentence in sentences) {
+      if (rawSentence.index < startSentenceIndex) continue;
       final String normalized = PhoneticNormalizer.prepare(
         TTSNormalizer.normalize(rawSentence.text),
       );

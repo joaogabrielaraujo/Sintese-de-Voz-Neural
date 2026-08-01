@@ -14,6 +14,7 @@ import 'core/memory/sentence_audio_item.dart';
 import 'core/metrics/mos_rating_model.dart';
 import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
+import 'core/text/sentence_segmenter.dart';
 import 'ui/widgets/audio_player_control_bar.dart';
 import 'ui/widgets/mos_evaluation_dialog.dart';
 import 'ui/widgets/sentence_highlight_view.dart';
@@ -78,7 +79,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   CircularAudioBuffer? _streamQueue;
   StreamIterator<SentenceAudioItem>? _streamIterator;
   SentenceAudioItem? _activeStreamingItem;
-  final List<String> _streamingVisibleSentences = [];
+  List<String> _chapterSentences = [];
+  int? _pendingSentenceIndex;
   bool _isStreaming = false;
   bool _isAdvancingStream = false;
   bool _completionHandledForActiveItem = false;
@@ -210,10 +212,32 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     setState(() {
       _loadedBook = book;
       _currentChapter = book.chapterOne;
+      _prepareChapterSentences();
     });
   }
 
-  Future<void> _runMvpPipeline() async {
+  void _prepareChapterSentences() {
+    final chapter = _currentChapter;
+    _chapterSentences = chapter == null
+        ? []
+        : SentenceSegmenter.segment(chapter.cleanText)
+            .map((sentence) => sentence.text)
+            .toList(growable: false);
+  }
+
+  void _selectSentence(int index) {
+    if (index < 0 || index >= _chapterSentences.length) return;
+    setState(() => _pendingSentenceIndex = index);
+  }
+
+  Future<void> _confirmSentenceSelection() async {
+    final selected = _pendingSentenceIndex;
+    if (selected == null) return;
+    setState(() => _pendingSentenceIndex = null);
+    await _runMvpPipeline(startSentenceIndex: selected);
+  }
+
+  Future<void> _runMvpPipeline({int startSentenceIndex = 0}) async {
     if (_loadedBook == null || _currentChapter == null) return;
 
     await _stopStreamingPipeline();
@@ -223,6 +247,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
         book: _loadedBook!,
         chapter: _currentChapter!,
         queue: queue,
+        startSentenceIndex: startSentenceIndex,
       ),
     );
 
@@ -230,11 +255,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       _isProcessing = true;
       _errorMessage = null;
       _lastResult = null;
-      _activeSentenceIndex = 0;
+      _activeSentenceIndex = startSentenceIndex;
       _streamQueue = queue;
       _streamIterator = iterator;
       _activeStreamingItem = null;
-      _streamingVisibleSentences.clear();
       _isStreaming = true;
     });
 
@@ -275,15 +299,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       if (previous != null) queue.release(previous);
       _activeStreamingItem = item;
       _completionHandledForActiveItem = false;
-      _streamingVisibleSentences.add(item.rawSentence.text);
-      if (_streamingVisibleSentences.length > 5) {
-        _streamingVisibleSentences.removeAt(0);
-      }
-
       await _audioPlayer.loadAudioBuffer(item.audio);
       if (mounted) {
         setState(() {
-          _activeSentenceIndex = _streamingVisibleSentences.length - 1;
+          _activeSentenceIndex = item.rawSentence.index;
           _importStatus = 'Frase ${item.rawSentence.index + 1} em reprodução';
           _isProcessing = false;
         });
@@ -338,6 +357,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       setState(() {
         _loadedBook = book;
         _currentChapter = book.chapterOne;
+        _prepareChapterSentences();
+        _pendingSentenceIndex = null;
         _lastResult = null;
         _importStatus = 'EPUB importado com sucesso';
       });
@@ -418,8 +439,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final sentencesList = _isStreaming
-        ? _streamingVisibleSentences
+    final sentencesList = _chapterSentences.isNotEmpty
+        ? _chapterSentences
         : (_lastResult?.items.map((i) => i.normalizedText).toList() ?? []);
     final activeEngineLabel =
         _engine.activeType?.label ?? 'Nenhum motor inicializado';
@@ -537,6 +558,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                             if (selected != null) {
                               setState(() {
                                 _currentChapter = selected;
+                                _prepareChapterSentences();
+                                _pendingSentenceIndex = null;
                                 _lastResult = null;
                                 unawaited(_stopStreamingPipeline());
                                 _audioPlayer.stop();
@@ -684,19 +707,40 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
             ],
 
             // ÁREA PRINCIPAL: Sentenças em destaque + Player de Áudio
-            if (_lastResult != null) ...[
+            if (_isStreaming || _lastResult != null || sentencesList.isNotEmpty) ...[
               const SizedBox(height: 12),
               Expanded(
                 child: SentenceHighlightView(
                   sentences: sentencesList,
                   activeIndex: _activeSentenceIndex,
-                  onSentenceTap: (index) {
-                    if (_isStreaming || _lastResult == null) return;
-                    setState(() => _activeSentenceIndex = index);
-                    _audioPlayer.seek(_lastResult!.timeline[index].start);
-                  },
+                  pendingIndex: _pendingSentenceIndex,
+                  onSentenceTap: _selectSentence,
                 ),
               ),
+              if (_pendingSentenceIndex != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(() => _pendingSentenceIndex = null),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Cancelar seleção'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isProcessing ? null : _confirmSentenceSelection,
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(
+                          'Continuar da frase ${_pendingSentenceIndex! + 1}',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               AudioPlayerControlBar(
                 playerService: _audioPlayer,
