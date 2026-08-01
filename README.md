@@ -552,7 +552,7 @@ O diretório `.planning/` contém a documentação de evolução do projeto:
 - `phases/`: contextos, planos, contratos de UI e verificações;
 - `debug/`: investigações técnicas persistentes.
 
-As fases recentes documentam a importação real de EPUB, a fila de áudio, a proteção contra OOM, a qualidade fonética e o Reader com seleção confirmada.
+As fases recentes documentam a importação real de EPUB, a fila de áudio, a proteção contra OOM, a qualidade fonética e o Reader com seleção confirmada. Foi utilizado, o framework Get the Shit Done.
 
 ---
 
