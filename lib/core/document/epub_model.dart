@@ -1,5 +1,32 @@
 import 'package:flutter/foundation.dart';
 
+/// Unidade ordenada do conteúdo visual de um capítulo EPUB.
+@immutable
+sealed class EpubContentBlock {
+  const EpubContentBlock();
+}
+
+/// Texto que pode ser segmentado e enviado à TTS.
+@immutable
+class EpubTextBlock extends EpubContentBlock {
+  final String text;
+  const EpubTextBlock(this.text);
+}
+
+/// Imagem interna do EPUB; permanece visual e nunca entra no fluxo de TTS.
+@immutable
+class EpubImageBlock extends EpubContentBlock {
+  final String resourcePath;
+  final Uint8List bytes;
+  final String? altText;
+
+  const EpubImageBlock({
+    required this.resourcePath,
+    required this.bytes,
+    this.altText,
+  });
+}
+
 /// Modelo de dados imutável representando um capítulo extraído de um arquivo EPUB.
 @immutable
 class EpubChapter {
@@ -18,12 +45,21 @@ class EpubChapter {
   /// Texto limpo e sanitizado por extenso, livre de tags HTML.
   final String cleanText;
 
+  /// Blocos visuais na ordem declarada no XHTML. Quando ausente, leitores
+  /// legados podem exibir [cleanText] normalmente.
+  final List<EpubContentBlock> contentBlocks;
+
+  /// Profundidade do item no sumário EPUB (0 para itens de primeiro nível).
+  final int outlineLevel;
+
   const EpubChapter({
     required this.index,
     required this.id,
     required this.title,
     required this.rawHtml,
     required this.cleanText,
+    this.contentBlocks = const [],
+    this.outlineLevel = 0,
   });
 
   /// Contagem total de palavras no capítulo limpo.

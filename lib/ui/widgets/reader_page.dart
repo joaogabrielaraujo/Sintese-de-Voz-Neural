@@ -242,6 +242,7 @@ class _ReadingPane extends StatelessWidget {
             Expanded(
               child: ReaderDocumentView(
                 sentences: sentences,
+                contentBlocks: chapter.contentBlocks,
                 activeIndex: activeIndex,
                 pendingIndex: pendingIndex,
                 onSentenceTap: onSentenceSelected,

@@ -42,6 +42,7 @@ class EpubBytesImporter {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
       final files = <String, String>{};
+      final resources = <String, Uint8List>{};
       for (final entry in archive) {
         if (entry.isFile) {
           final path = EpubParser.normalizeArchivePath(entry.name);
@@ -50,13 +51,15 @@ class EpubBytesImporter {
               entry.content as List<int>,
               allowMalformed: false,
             );
+          } else {
+            resources[path] = Uint8List.fromList(entry.content as List<int>);
           }
         }
       }
       if (!files.containsKey('META-INF/container.xml')) {
         throw const EpubImportException('EPUB inválido: META-INF/container.xml não encontrado.');
       }
-      final book = EpubParser.parseArchive(files);
+      final book = EpubParser.parseArchive(files, resources: resources);
       if (book.chapters.isEmpty) {
         throw const EpubImportException('EPUB inválido: nenhum capítulo legível foi encontrado.');
       }

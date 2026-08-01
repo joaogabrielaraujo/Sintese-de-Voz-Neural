@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'epub_model.dart';
 import 'html_sanitizer.dart';
 
@@ -7,7 +9,10 @@ import 'html_sanitizer.dart';
 /// e geração do objeto imutável [EpubBook].
 class EpubParser {
   /// Realiza o parsing de um mapa simulado ou descompactado de arquivos de um EPUB (caminho -> conteúdo String/Bytes).
-  static EpubBook parseArchive(Map<String, String> files) {
+  static EpubBook parseArchive(
+    Map<String, String> files, {
+    Map<String, Uint8List> resources = const {},
+  }) {
     String title = 'Livro sem Título';
     String author = 'Autor Desconhecido';
     String language = 'pt-BR';
@@ -29,6 +34,7 @@ class EpubParser {
 
     // 3. Obter a lista de capítulos (arquivos XHTML) na ordem exata de leitura
     final List<String> chapterPaths = _getChapterPathsFromOpf(opfContent, opfPath, files);
+    final navigation = _getNavigationFromOpf(opfContent, opfPath, files);
 
     final List<EpubChapter> chapters = [];
     int chapterIndex = 0;
@@ -37,13 +43,17 @@ class EpubParser {
       final String? rawHtml = files[path];
       if (rawHtml == null || rawHtml.trim().isEmpty) continue;
 
-      final String cleanText = HtmlSanitizer.sanitize(rawHtml);
+      final blocks = _contentBlocks(rawHtml, path, resources);
+      final String cleanText = blocks
+          .whereType<EpubTextBlock>()
+          .map((block) => block.text)
+          .where((text) => text.isNotEmpty)
+          .join('\n\n');
       if (cleanText.trim().isEmpty) continue;
 
-      final String chapterTitle = HtmlSanitizer.extractTitle(
-        rawHtml,
-        fallbackTitle: 'Capítulo ${chapterIndex + 1}',
-      );
+      final nav = navigation[path];
+      final String chapterTitle = nav?.title ?? HtmlSanitizer.extractTitle(
+        rawHtml, fallbackTitle: 'Capítulo ${chapterIndex + 1}');
 
       chapters.add(EpubChapter(
         index: chapterIndex++,
@@ -51,6 +61,8 @@ class EpubParser {
         title: chapterTitle,
         rawHtml: rawHtml,
         cleanText: cleanText,
+        contentBlocks: blocks,
+        outlineLevel: nav?.level ?? 0,
       ));
     }
 
@@ -81,6 +93,68 @@ class EpubParser {
       language: language,
       chapters: chapters,
     );
+  }
+
+  static Map<String, _NavigationEntry> _getNavigationFromOpf(
+    String opfContent, String opfPath, Map<String, String> files) {
+    final baseDir = opfPath.contains('/') ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1) : '';
+    final manifest = <String, String>{};
+    for (final match in RegExp(r'<item\b([^>]*)>', caseSensitive: false).allMatches(opfContent)) {
+      final attrs = match.group(1) ?? '';
+      final id = _extractAttribute(attrs, 'id');
+      final href = _extractAttribute(attrs, 'href');
+      if (id != null && href != null) manifest[id] = normalizeArchivePath('$baseDir${Uri.decodeFull(href).split('#').first}');
+    }
+    String? navPath;
+    for (final match in RegExp(r'<item\b([^>]*)>', caseSensitive: false).allMatches(opfContent)) {
+      final attrs = match.group(1) ?? '';
+      final properties = _extractAttribute(attrs, 'properties') ?? '';
+      final id = _extractAttribute(attrs, 'id');
+      if (id != null && RegExp(r'(^|\s)nav(\s|$)').hasMatch(properties)) {
+        navPath = manifest[id];
+        break;
+      }
+    }
+    final candidates = <String>[if (navPath != null) navPath, ...files.keys.where((path) => path.toLowerCase().endsWith('.ncx'))];
+    final result = <String, _NavigationEntry>{};
+    for (final candidate in candidates) {
+      final content = files[candidate];
+      if (content == null) continue;
+      final base = candidate.contains('/') ? candidate.substring(0, candidate.lastIndexOf('/') + 1) : '';
+      final link = RegExp(r'<(?:a|content)\b([^>]*)>(?:([^<]*)</a>)?', caseSensitive: false);
+      var level = 0;
+      for (final match in link.allMatches(content)) {
+        final attrs = match.group(1) ?? '';
+        final href = _extractAttribute(attrs, 'href') ?? _extractAttribute(attrs, 'src');
+        if (href == null) continue;
+        final path = normalizeArchivePath('$base${Uri.decodeFull(href).split('#').first}');
+        final title = HtmlSanitizer.sanitize(match.group(2) ?? '').trim();
+        if (title.isNotEmpty) result.putIfAbsent(path, () => _NavigationEntry(title, level));
+      }
+    }
+    return result;
+  }
+
+  static List<EpubContentBlock> _contentBlocks(String html, String chapterPath, Map<String, Uint8List> resources) {
+    final blocks = <EpubContentBlock>[];
+    final image = RegExp(r'<img\b([^>]*)>', caseSensitive: false);
+    var cursor = 0;
+    for (final match in image.allMatches(html)) {
+      final before = HtmlSanitizer.sanitize(html.substring(cursor, match.start));
+      if (before.isNotEmpty) blocks.add(EpubTextBlock(before));
+      final attrs = match.group(1) ?? '';
+      final src = _extractAttribute(attrs, 'src');
+      if (src != null) {
+        final base = chapterPath.contains('/') ? chapterPath.substring(0, chapterPath.lastIndexOf('/') + 1) : '';
+        final resolved = normalizeArchivePath('$base${Uri.decodeFull(src).split('#').first}');
+        final bytes = resources[resolved];
+        if (bytes != null) blocks.add(EpubImageBlock(resourcePath: resolved, bytes: bytes, altText: _extractAttribute(attrs, 'alt')));
+      }
+      cursor = match.end;
+    }
+    final after = HtmlSanitizer.sanitize(html.substring(cursor));
+    if (after.isNotEmpty) blocks.add(EpubTextBlock(after));
+    return blocks.isEmpty ? [EpubTextBlock(HtmlSanitizer.sanitize(html))] : blocks;
   }
 
   static String _findOpfPath(Map<String, String> files) {
@@ -174,4 +248,10 @@ class EpubParser {
     }
     return null;
   }
+}
+
+class _NavigationEntry {
+  final String title;
+  final int level;
+  const _NavigationEntry(this.title, this.level);
 }

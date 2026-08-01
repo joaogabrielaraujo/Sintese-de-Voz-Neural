@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tcc_tts_neural/core/document/epub_model.dart';
 import 'package:tcc_tts_neural/core/document/epub_parser.dart';
@@ -75,6 +77,29 @@ void main() {
       });
 
       expect(book.chapters.single.cleanText, contains('ação'));
+    });
+
+    test('prioriza nav.xhtml e preserva imagem interna sem incluí-la na TTS', () {
+      final book = EpubParser.parseArchive({
+        'META-INF/container.xml': '<container><rootfile full-path="OPS/package.opf"/></container>',
+        'OPS/package.opf': '<package><manifest>'
+            '<item id="nav" properties="nav" href="nav.xhtml"/>'
+            '<item id="chapter" href="text/chapter.xhtml"/>'
+            '</manifest><spine><itemref idref="chapter"/></spine></package>',
+        'OPS/nav.xhtml': '<nav><ol><li><a href="text/chapter.xhtml">Parte I — Abertura</a></li></ol></nav>',
+        'OPS/text/chapter.xhtml': '<html><body><p>Antes da imagem.</p><img src="../images/figura.png" alt="descrição"/><p>Depois da imagem.</p></body></html>',
+      }, resources: {
+        'OPS/images/figura.png': Uint8List.fromList([137, 80, 78, 71]),
+      });
+
+      final chapter = book.chapters.single;
+      expect(chapter.title, 'Parte I — Abertura');
+      expect(chapter.cleanText, contains('Antes da imagem.'));
+      expect(chapter.cleanText, contains('Depois da imagem.'));
+      expect(chapter.cleanText, isNot(contains('descrição')));
+      final image = chapter.contentBlocks.whereType<EpubImageBlock>().single;
+      expect(image.resourcePath, 'OPS/images/figura.png');
+      expect(image.bytes, [137, 80, 78, 71]);
     });
 
     test('rejeita OPF ausente em vez de voltar silenciosamente ao exemplo', () {
