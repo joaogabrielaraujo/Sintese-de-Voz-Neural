@@ -15,9 +15,11 @@ import 'core/metrics/mos_rating_model.dart';
 import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
 import 'core/text/sentence_segmenter.dart';
+import 'core/text/sentence_model.dart';
 import 'ui/widgets/audio_player_control_bar.dart';
 import 'ui/widgets/mos_evaluation_dialog.dart';
 import 'ui/widgets/sentence_highlight_view.dart';
+import 'ui/widgets/reader_document_view.dart';
 
 void main() {
   runApp(const TCCNeuralApp());
@@ -80,7 +82,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   StreamIterator<SentenceAudioItem>? _streamIterator;
   SentenceAudioItem? _activeStreamingItem;
   List<String> _chapterSentences = [];
+  List<TextSentence> _chapterSentenceModels = [];
   int? _pendingSentenceIndex;
+  bool _isReaderOpen = false;
   bool _isStreaming = false;
   bool _isAdvancingStream = false;
   bool _completionHandledForActiveItem = false;
@@ -218,11 +222,21 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
 
   void _prepareChapterSentences() {
     final chapter = _currentChapter;
-    _chapterSentences = chapter == null
+    _chapterSentenceModels = chapter == null
         ? []
-        : SentenceSegmenter.segment(chapter.cleanText)
-            .map((sentence) => sentence.text)
-            .toList(growable: false);
+        : SentenceSegmenter.segment(chapter.cleanText);
+    _chapterSentences = _chapterSentenceModels
+        .map((sentence) => sentence.text)
+        .toList(growable: false);
+  }
+
+  void _closeReader() {
+    unawaited(_stopStreamingPipeline());
+    unawaited(_audioPlayer.stop());
+    setState(() {
+      _isReaderOpen = false;
+      _pendingSentenceIndex = null;
+    });
   }
 
   void _selectSentence(int index) {
@@ -240,6 +254,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   Future<void> _runMvpPipeline({int startSentenceIndex = 0}) async {
     if (_loadedBook == null || _currentChapter == null) return;
 
+    if (!_isReaderOpen) {
+      setState(() => _isReaderOpen = true);
+    }
     await _stopStreamingPipeline();
     final queue = CircularAudioBuffer(maxItems: 3);
     final iterator = StreamIterator<SentenceAudioItem>(
@@ -359,6 +376,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
         _currentChapter = book.chapterOne;
         _prepareChapterSentences();
         _pendingSentenceIndex = null;
+        _isReaderOpen = true;
         _lastResult = null;
         _importStatus = 'EPUB importado com sucesso';
       });
@@ -437,8 +455,130 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     );
   }
 
+  Widget _buildReaderScaffold() {
+    final chapter = _currentChapter;
+    if (chapter == null) return const SizedBox.shrink();
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Voltar para o início',
+          onPressed: _closeReader,
+        ),
+        title: Text(
+          chapter.title,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFF1E293B),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<EpubChapter>(
+                    value: chapter,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF1E293B),
+                    items: _loadedBook!.chapters
+                        .map((item) => DropdownMenuItem<EpubChapter>(
+                              value: item,
+                              child: Text(item.title),
+                            ))
+                        .toList(),
+                    onChanged: (selected) {
+                      if (selected == null) return;
+                      unawaited(_stopStreamingPipeline());
+                      unawaited(_audioPlayer.stop());
+                      setState(() {
+                        _currentChapter = selected;
+                        _prepareChapterSentences();
+                        _pendingSentenceIndex = null;
+                        _activeSentenceIndex = 0;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${chapter.wordCount} palavras',
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ReaderDocumentView(
+              sentences: _chapterSentenceModels,
+              activeIndex: _activeSentenceIndex,
+              pendingIndex: _pendingSentenceIndex,
+              onSentenceTap: _selectSentence,
+            ),
+          ),
+          if (_pendingSentenceIndex != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _pendingSentenceIndex = null),
+                      child: const Text('Cancelar seleção'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _confirmSentenceSelection,
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('Continuar da frase ${_pendingSentenceIndex! + 1}'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: AudioPlayerControlBar(
+              playerService: _audioPlayer,
+              currentState: _audioState,
+              currentPosition: _currentPosition,
+              totalDuration: _totalDuration,
+              currentSpeed: _currentSpeed,
+              onPlayPausePressed: () {
+                if (_audioState == TTSAudioState.playing) {
+                  _audioPlayer.pause();
+                } else if (!_isStreaming) {
+                  _runMvpPipeline(startSentenceIndex: _activeSentenceIndex);
+                } else {
+                  _audioPlayer.play();
+                }
+              },
+              onStopPressed: () {
+                unawaited(_stopStreamingPipeline());
+                unawaited(_audioPlayer.stop());
+              },
+              onSeekChanged: (position) => _audioPlayer.seek(position),
+              onSpeedChanged: (speed) {
+                setState(() => _currentSpeed = speed);
+                _audioPlayer.setSpeed(speed);
+              },
+              onOpenMOSDialog: _showMOSDialog,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isReaderOpen) return _buildReaderScaffold();
+
     final sentencesList = _chapterSentences.isNotEmpty
         ? _chapterSentences
         : (_lastResult?.items.map((i) => i.normalizedText).toList() ?? []);
