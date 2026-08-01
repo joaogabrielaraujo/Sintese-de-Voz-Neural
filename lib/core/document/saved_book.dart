@@ -9,6 +9,7 @@ class SavedBookRecord {
   final int totalChapters;
   final int chapterIndex;
   final int sentenceIndex;
+  final int completedSentenceIndex;
   final double progress;
   final DateTime updatedAt;
 
@@ -21,6 +22,7 @@ class SavedBookRecord {
     required this.totalChapters,
     required this.chapterIndex,
     required this.sentenceIndex,
+    this.completedSentenceIndex = -1,
     required this.progress,
     required this.updatedAt,
   });
@@ -30,6 +32,7 @@ class SavedBookRecord {
   SavedBookRecord copyWith({
     int? chapterIndex,
     int? sentenceIndex,
+    int? completedSentenceIndex,
     double? progress,
     DateTime? updatedAt,
   }) {
@@ -42,6 +45,8 @@ class SavedBookRecord {
       totalChapters: totalChapters,
       chapterIndex: chapterIndex ?? this.chapterIndex,
       sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+      completedSentenceIndex:
+          completedSentenceIndex ?? this.completedSentenceIndex,
       progress: (progress ?? this.progress).clamp(0.0, 1.0).toDouble(),
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -56,6 +61,7 @@ class SavedBookRecord {
         'totalChapters': totalChapters,
         'chapterIndex': chapterIndex,
         'sentenceIndex': sentenceIndex,
+        'completedSentenceIndex': completedSentenceIndex,
         'progress': progress,
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -70,6 +76,8 @@ class SavedBookRecord {
       totalChapters: (json['totalChapters'] as num?)?.toInt() ?? 0,
       chapterIndex: (json['chapterIndex'] as num?)?.toInt() ?? 0,
       sentenceIndex: (json['sentenceIndex'] as num?)?.toInt() ?? 0,
+      completedSentenceIndex:
+          (json['completedSentenceIndex'] as num?)?.toInt() ?? -1,
       progress: ((json['progress'] as num?)?.toDouble() ?? 0)
           .clamp(0.0, 1.0)
           .toDouble(),
