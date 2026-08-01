@@ -81,6 +81,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   final List<String> _streamingVisibleSentences = [];
   bool _isStreaming = false;
   bool _isAdvancingStream = false;
+  bool _completionHandledForActiveItem = false;
 
   // Estados do Player de Áudio
   TTSAudioState _audioState = TTSAudioState.stopped;
@@ -113,7 +114,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   void _initAudioListeners() {
     _stateSub = _audioPlayer.stateStream.listen((state) {
       if (mounted) setState(() => _audioState = state);
-      if (state == TTSAudioState.completed && _isStreaming) {
+      if (state == TTSAudioState.completed &&
+          _isStreaming &&
+          !_completionHandledForActiveItem) {
+        _completionHandledForActiveItem = true;
         unawaited(_advanceStreamingSentence());
       }
     });
@@ -270,6 +274,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       final previous = _activeStreamingItem;
       if (previous != null) queue.release(previous);
       _activeStreamingItem = item;
+      _completionHandledForActiveItem = false;
       _streamingVisibleSentences.add(item.rawSentence.text);
       if (_streamingVisibleSentences.length > 5) {
         _streamingVisibleSentences.removeAt(0);

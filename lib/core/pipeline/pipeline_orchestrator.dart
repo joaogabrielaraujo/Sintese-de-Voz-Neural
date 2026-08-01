@@ -1,6 +1,7 @@
 import '../engine/tts_engine_interface.dart';
 import '../document/epub_model.dart';
 import '../text/tts_normalizer.dart';
+import '../text/phonetic_normalizer.dart';
 import '../memory/circular_audio_buffer.dart';
 import '../memory/sentence_audio_item.dart';
 import '../text/sentence_model.dart';
@@ -39,7 +40,9 @@ class PipelineOrchestrator {
 
     for (final TextSentence rawSentence in sentences) {
       // 3. Normalização Gramatical PLN em PT-BR (Fase 2)
-      final String normalized = TTSNormalizer.normalize(rawSentence.text);
+      final String normalized = PhoneticNormalizer.prepare(
+        TTSNormalizer.normalize(rawSentence.text),
+      );
 
       // 4. Inferência Neural ONNX (Fase 1)
       final synthesisResult = await engine.synthesizeWithMetrics(normalized);
@@ -134,7 +137,9 @@ class PipelineOrchestrator {
     );
 
     for (final TextSentence rawSentence in sentences) {
-      final String normalized = TTSNormalizer.normalize(rawSentence.text);
+      final String normalized = PhoneticNormalizer.prepare(
+        TTSNormalizer.normalize(rawSentence.text),
+      );
       final synthesisResult = await engine.synthesizeWithMetrics(normalized);
 
       final item = SentenceAudioItem(
