@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="book-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">urn:uuid:valid-test-book</dc:identifier>
+    <dc:title>O Livro de Teste — Síntese de Voz</dc:title>
+    <dc:creator>Equipe de Teste</dc:creator>
+    <dc:language>pt-BR</dc:language>
+  </metadata>
+  <manifest>
+    <item href="Text/cap%C3%ADtulo%201.xhtml" id="chapter-1" media-type="application/xhtml+xml"/>
+    <item media-type="application/xhtml+xml" id="chapter-2" href="Text/./capitulo-2.xhtml"/>
+  </manifest>
+  <spine>
+    <itemref linear="yes" idref="chapter-1"/>
+    <itemref idref="chapter-2" linear="yes"/>
+  </spine>
+</package>

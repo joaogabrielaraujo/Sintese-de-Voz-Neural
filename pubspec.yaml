@@ -11,6 +11,11 @@ dependencies:
     sdk: flutter
   path: ^1.9.0
   path_provider: ^2.1.2
+  audioplayers: ^6.0.0
+  flutter_tts: ^4.0.2
+  sherpa_onnx: ^1.10.15
+  file_picker: ^11.0.2
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:
@@ -21,3 +26,40 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/
+    - assets/models/espeak-ng-data/
+    - assets/models/espeak-ng-data/lang/
+    - assets/models/espeak-ng-data/lang/aav/
+    - assets/models/espeak-ng-data/lang/art/
+    - assets/models/espeak-ng-data/lang/azc/
+    - assets/models/espeak-ng-data/lang/bat/
+    - assets/models/espeak-ng-data/lang/bnt/
+    - assets/models/espeak-ng-data/lang/ccs/
+    - assets/models/espeak-ng-data/lang/cel/
+    - assets/models/espeak-ng-data/lang/cus/
+    - assets/models/espeak-ng-data/lang/dra/
+    - assets/models/espeak-ng-data/lang/esx/
+    - assets/models/espeak-ng-data/lang/gmq/
+    - assets/models/espeak-ng-data/lang/gmw/
+    - assets/models/espeak-ng-data/lang/grk/
+    - assets/models/espeak-ng-data/lang/inc/
+    - assets/models/espeak-ng-data/lang/ine/
+    - assets/models/espeak-ng-data/lang/ira/
+    - assets/models/espeak-ng-data/lang/iro/
+    - assets/models/espeak-ng-data/lang/itc/
+    - assets/models/espeak-ng-data/lang/jpx/
+    - assets/models/espeak-ng-data/lang/map/
+    - assets/models/espeak-ng-data/lang/miz/
+    - assets/models/espeak-ng-data/lang/myn/
+    - assets/models/espeak-ng-data/lang/poz/
+    - assets/models/espeak-ng-data/lang/roa/
+    - assets/models/espeak-ng-data/lang/sai/
+    - assets/models/espeak-ng-data/lang/sem/
+    - assets/models/espeak-ng-data/lang/sit/
+    - assets/models/espeak-ng-data/lang/tai/
+    - assets/models/espeak-ng-data/lang/trk/
+    - assets/models/espeak-ng-data/lang/urj/
+    - assets/models/espeak-ng-data/lang/zle/
+    - assets/models/espeak-ng-data/lang/zls/
+    - assets/models/espeak-ng-data/lang/zlw/
+    - assets/models/espeak-ng-data/voices/
+    - assets/models/espeak-ng-data/voices/!v/

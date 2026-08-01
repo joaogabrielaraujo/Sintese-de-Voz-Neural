@@ -14,12 +14,16 @@
 ### 1. Desafio Tecnológico
 Equilibrar inferência de Deep Learning de alta qualidade (VITS ONNX) localmente em dispositivos móveis (Edge Computing) com restrições de memória RAM, CPU e bateria, evitando vazamentos de memória (OOM) na leitura de textos longos de livros digitais (EPUB).
 
-### 2. Componentes da Arquitetura
+### 2. Documentação Técnica da Inferência ONNX & Resolução de Falhas
+- 📘 [ONNX_TTS_TECHNICAL_GUIDE.md](file:///C:/Users/55759/Documents/sintese_de_voz/.planning/ONNX_TTS_TECHNICAL_GUIDE.md): Guia detalhado contendo o diagnóstico técnico dos problemas do motor neural (espeak-ng-data, FFI DLLs, provedores) e a solução de resiliência baseada na análise do VoxSherpa-TTS.
+
+### 3. Componentes da Arquitetura
 1. **Módulo de Extração EPUB**: Leitura estruturada de arquivos HTML/XHTML em contêineres EPUB.
 2. **Pipeline PLN / TTS-Norm**: Normalização de texto (numerais, siglas, pontuações, caracteres especiais para texto por extenso).
 3. **Fatiador de Sentenças & Buffer Circular (FIFO)**: Fragmentação de texto contínuo e gerenciamento assíncrono de memória para produção/consumo de áudio sem travamentos ou estouro de RAM.
 4. **Motor de Inferência Neural Offline**: Integração com motor de inferência móvel (Sherpa-onnx / Piper TTS) executando modelos VITS otimizados para ONNX.
-5. **Módulo de Telemetria e Benchmark**: Medição de Real-Time Factor (RTF), consumo de RAM e perfil de uso de CPU.
+5. **Módulo de Expressividade & Pausas (`PunctuationPauseHelper`)**: Injeção de silêncios por pontuação com jitter estocástico (±10%) inspirado no VoxSherpa-TTS.
+6. **Módulo de Telemetria e Benchmark**: Medição de Real-Time Factor (RTF), consumo de RAM e perfil de uso de CPU.
 
 ---
 

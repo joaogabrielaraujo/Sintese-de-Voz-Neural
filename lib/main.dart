@@ -1,24 +1,38 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'core/audio/audio_player_service.dart';
+import 'core/audio/audio_player_service_interface.dart';
 import 'core/config/tts_config.dart';
-import 'core/engine/mock_tts_engine.dart';
-import 'core/engine/tts_engine_interface.dart';
-import 'core/epub/epub_model.dart';
-import 'core/epub/epub_parser.dart';
+import 'core/engine/composite_tts_engine.dart';
+import 'core/engine/tts_engine_type.dart';
+import 'core/document/epub_model.dart';
+import 'core/document/epub_parser.dart';
+import 'core/document/epub_bytes_importer.dart';
+import 'core/document/selected_document.dart';
+import 'core/memory/circular_audio_buffer.dart';
+import 'core/memory/sentence_audio_item.dart';
+import 'core/metrics/mos_rating_model.dart';
 import 'core/pipeline/pipeline_orchestrator.dart';
 import 'core/pipeline/pipeline_result.dart';
+import 'core/text/sentence_segmenter.dart';
+import 'core/text/sentence_model.dart';
+import 'ui/widgets/audio_player_control_bar.dart';
+import 'ui/widgets/mos_evaluation_dialog.dart';
+import 'ui/widgets/sentence_highlight_view.dart';
+import 'ui/widgets/reader_document_view.dart';
 
 void main() {
   runApp(const TCCNeuralApp());
 }
 
-/// Aplicativo de Demonstração do PRIMEIRO MVP - TCC Engenharia de Computação (UEFS).
+/// Aplicativo de Leitor EPUB Neural & Player de Áudio (Fase 6 - TCC UEFS).
 class TCCNeuralApp extends StatelessWidget {
   const TCCNeuralApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TCC - Primeiro MVP Leitor EPUB Neural',
+      title: 'TCC - Leitor EPUB Neural & Player de Áudio',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A), // Slate Escuro
@@ -33,15 +47,29 @@ class TCCNeuralApp extends StatelessWidget {
 }
 
 class PoCNeuralHomePage extends StatefulWidget {
-  const PoCNeuralHomePage({super.key});
+  final EpubDocumentPicker picker;
+  final EpubBytesImporter importer;
+
+  const PoCNeuralHomePage({
+    super.key,
+    this.picker = const NativeEpubDocumentPicker(),
+    this.importer = const EpubBytesImporter(),
+  });
 
   @override
   State<PoCNeuralHomePage> createState() => _PoCNeuralHomePageState();
 }
 
 class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
-  late final ITTSEngine _engine;
+  static const _selectableEngineTypes = <TTSEngineType>[
+    TTSEngineType.autoFailover,
+    TTSEngineType.sherpaOnnx,
+    TTSEngineType.sherpaOnnxCli,
+  ];
+
+  late final CompositeTTSEngine _engine;
   late final PipelineOrchestrator _orchestrator;
+  late final IAudioPlayerService _audioPlayer;
 
   EpubBook? _loadedBook;
   EpubChapter? _currentChapter;
@@ -49,19 +77,94 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
   bool _isProcessing = false;
   PipelineResult? _lastResult;
   String? _errorMessage;
+  String _importStatus = 'Livro de demonstração carregado';
+  CircularAudioBuffer? _streamQueue;
+  StreamIterator<SentenceAudioItem>? _streamIterator;
+  SentenceAudioItem? _activeStreamingItem;
+  List<String> _chapterSentences = [];
+  List<TextSentence> _chapterSentenceModels = [];
+  int? _pendingSentenceIndex;
+  bool _isReaderOpen = false;
+  bool _isStreaming = false;
+  bool _isAdvancingStream = false;
+  bool _completionHandledForActiveItem = false;
+
+  // Estados do Player de Áudio
+  TTSAudioState _audioState = TTSAudioState.stopped;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+  double _currentSpeed = 1.0;
+  int _activeSentenceIndex = 0;
+
+  // Inscrições em Streams
+  StreamSubscription<TTSAudioState>? _stateSub;
+  StreamSubscription<Duration>? _posSub;
+  StreamSubscription<Duration?>? _durSub;
+
+  final List<MOSRating> _savedMOSRatings = [];
 
   @override
   void initState() {
     super.initState();
-    _engine = MockTTSEngine(
-      config: TTSConfig.defaultPtBr(),
-    );
+    // Instancia o CompositeTTSEngine resiliente com Failover Automático
+    _engine = CompositeTTSEngine(config: TTSConfig.defaultPtBr());
     _orchestrator = PipelineOrchestrator(engine: _engine);
+
+    // Usa AudioPlayerService nativo para reprodução de áudio real
+    _audioPlayer = AudioPlayerService();
+
+    _initAudioListeners();
     _loadSampleEpub();
+  }
+
+  void _initAudioListeners() {
+    _stateSub = _audioPlayer.stateStream.listen((state) {
+      if (mounted) setState(() => _audioState = state);
+      if (state == TTSAudioState.completed &&
+          _isStreaming &&
+          !_completionHandledForActiveItem) {
+        _completionHandledForActiveItem = true;
+        unawaited(_advanceStreamingSentence());
+      }
+    });
+
+    _posSub = _audioPlayer.positionStream.listen((pos) {
+      if (mounted) {
+        setState(() {
+          _currentPosition = pos;
+          _updateActiveSentenceIndex(pos);
+        });
+      }
+    });
+
+    _durSub = _audioPlayer.durationStream.listen((dur) {
+      if (mounted && dur != null) {
+        setState(() => _totalDuration = dur);
+      }
+    });
+  }
+
+  void _updateActiveSentenceIndex(Duration pos) {
+    if (_lastResult == null || _lastResult!.items.isEmpty) return;
+
+    final timeline = _lastResult!.timeline;
+    for (int i = 0; i < timeline.length; i++) {
+      if (pos < timeline[i].end || i == timeline.length - 1) {
+        if (_activeSentenceIndex != i) {
+          setState(() => _activeSentenceIndex = i);
+        }
+        return;
+      }
+    }
   }
 
   @override
   void dispose() {
+    unawaited(_stopStreamingPipeline());
+    _stateSub?.cancel();
+    _posSub?.cancel();
+    _durSub?.cancel();
+    _audioPlayer.dispose();
     _engine.dispose();
     super.dispose();
   }
@@ -113,12 +216,199 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     setState(() {
       _loadedBook = book;
       _currentChapter = book.chapterOne;
+      _prepareChapterSentences();
     });
   }
 
-  Future<void> _runMvpPipeline() async {
+  void _prepareChapterSentences() {
+    final chapter = _currentChapter;
+    _chapterSentenceModels = chapter == null
+        ? []
+        : SentenceSegmenter.segment(chapter.cleanText);
+    _chapterSentences = _chapterSentenceModels
+        .map((sentence) => sentence.text)
+        .toList(growable: false);
+  }
+
+  void _closeReader() {
+    unawaited(_stopStreamingPipeline());
+    unawaited(_audioPlayer.stop());
+    setState(() {
+      _isReaderOpen = false;
+      _pendingSentenceIndex = null;
+    });
+  }
+
+  void _selectSentence(int index) {
+    if (index < 0 || index >= _chapterSentences.length) return;
+    setState(() => _pendingSentenceIndex = index);
+  }
+
+  Future<void> _confirmSentenceSelection() async {
+    final selected = _pendingSentenceIndex;
+    if (selected == null) return;
+    setState(() => _pendingSentenceIndex = null);
+    await _runMvpPipeline(startSentenceIndex: selected);
+  }
+
+  Future<void> _runMvpPipeline({int startSentenceIndex = 0}) async {
     if (_loadedBook == null || _currentChapter == null) return;
 
+    if (!_isReaderOpen) {
+      setState(() => _isReaderOpen = true);
+    }
+    await _stopStreamingPipeline();
+    final queue = CircularAudioBuffer(maxItems: 3);
+    final iterator = StreamIterator<SentenceAudioItem>(
+      _orchestrator.processChapterStream(
+        book: _loadedBook!,
+        chapter: _currentChapter!,
+        queue: queue,
+        startSentenceIndex: startSentenceIndex,
+      ),
+    );
+
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+      _lastResult = null;
+      _activeSentenceIndex = startSentenceIndex;
+      _streamQueue = queue;
+      _streamIterator = iterator;
+      _activeStreamingItem = null;
+      _isStreaming = true;
+    });
+
+    await _advanceStreamingSentence();
+  }
+
+  Future<void> _advanceStreamingSentence() async {
+    if (_isAdvancingStream || !_isStreaming) return;
+    _isAdvancingStream = true;
+    try {
+      final iterator = _streamIterator;
+      final queue = _streamQueue;
+      if (iterator == null || queue == null) return;
+
+      final hasNext = await iterator.moveNext();
+      if (!hasNext) {
+        final active = _activeStreamingItem;
+        if (active != null) {
+          queue.release(active);
+        }
+        _activeStreamingItem = null;
+        _isStreaming = false;
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+            _importStatus = 'Leitura concluída';
+          });
+        }
+        await iterator.cancel();
+        queue.dispose();
+        _streamIterator = null;
+        _streamQueue = null;
+        return;
+      }
+
+      final item = iterator.current;
+      final previous = _activeStreamingItem;
+      if (previous != null) queue.release(previous);
+      _activeStreamingItem = item;
+      _completionHandledForActiveItem = false;
+      await _audioPlayer.loadAudioBuffer(item.audio);
+      if (mounted) {
+        setState(() {
+          _activeSentenceIndex = item.rawSentence.index;
+          _importStatus = 'Frase ${item.rawSentence.index + 1} em reprodução';
+          _isProcessing = false;
+        });
+      }
+      await _audioPlayer.play();
+    } catch (error) {
+      _isStreaming = false;
+      await _stopStreamingPipeline();
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = error.toString();
+          _importStatus = 'Falha durante a leitura';
+        });
+      }
+    } finally {
+      _isAdvancingStream = false;
+    }
+  }
+
+  Future<void> _stopStreamingPipeline() async {
+    _isStreaming = false;
+    final active = _activeStreamingItem;
+    final iterator = _streamIterator;
+    final queue = _streamQueue;
+    _streamIterator = null;
+    _streamQueue = null;
+    _activeStreamingItem = null;
+    if (active != null) {
+      queue?.release(active);
+    }
+    queue?.cancel();
+    if (iterator != null) await iterator.cancel();
+    queue?.dispose();
+  }
+
+  Future<void> _importEpub() async {
+    setState(() {
+      _importStatus = 'Selecionando EPUB...';
+      _errorMessage = null;
+    });
+    try {
+      final selected = await widget.picker.pickEpub();
+      if (!mounted) return;
+      if (selected == null) {
+        setState(() => _importStatus = 'Importação cancelada');
+        return;
+      }
+      setState(() => _importStatus = 'Lendo EPUB...');
+      final book = widget.importer.importDocument(selected);
+      if (!mounted) return;
+      setState(() {
+        _loadedBook = book;
+        _currentChapter = book.chapterOne;
+        _prepareChapterSentences();
+        _pendingSentenceIndex = null;
+        _isReaderOpen = true;
+        _lastResult = null;
+        _importStatus = 'EPUB importado com sucesso';
+      });
+    } on EpubImportException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha na importação';
+      });
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha na importação';
+      });
+    } on DocumentSelectionException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _importStatus = 'Falha ao ler o arquivo selecionado';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Não foi possível importar este EPUB.';
+        _importStatus = 'Falha na importação';
+      });
+    }
+  }
+
+  Future<void> _switchEngine(TTSEngineType type) async {
+    await _audioPlayer.stop();
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
@@ -126,37 +416,206 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
     });
 
     try {
-      final PipelineResult result = await _orchestrator.processChapter(
-        book: _loadedBook!,
-        chapter: _currentChapter!,
-      );
-
+      if (_engine.selectedType == type) {
+        await _engine.initialize();
+      } else {
+        await _engine.setEngineType(type);
+      }
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+    } catch (error) {
+      if (!mounted) return;
       setState(() {
-        _lastResult = result;
         _isProcessing = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isProcessing = false;
+        _errorMessage = error.toString();
       });
     }
   }
 
+  void _showMOSDialog() {
+    if (_lastResult == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => MOSEvaluationDialog(
+        sampleText: _currentChapter?.plainText ?? '',
+        onSubmitted: (rating) {
+          setState(() {
+            _savedMOSRatings.add(rating);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Avaliação MOS salva com sucesso! Média: ${rating.averageScore.toStringAsFixed(2)} estrelas.',
+              ),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReaderScaffold() {
+    final chapter = _currentChapter;
+    if (chapter == null) return const SizedBox.shrink();
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Voltar para o início',
+          onPressed: _closeReader,
+        ),
+        title: Text(
+          chapter.title,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFF1E293B),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<EpubChapter>(
+                    value: chapter,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF1E293B),
+                    items: _loadedBook!.chapters
+                        .map((item) => DropdownMenuItem<EpubChapter>(
+                              value: item,
+                              child: Text(item.title),
+                            ))
+                        .toList(),
+                    onChanged: (selected) {
+                      if (selected == null) return;
+                      unawaited(_stopStreamingPipeline());
+                      unawaited(_audioPlayer.stop());
+                      setState(() {
+                        _currentChapter = selected;
+                        _prepareChapterSentences();
+                        _pendingSentenceIndex = null;
+                        _activeSentenceIndex = 0;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${chapter.wordCount} palavras',
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ReaderDocumentView(
+              sentences: _chapterSentenceModels,
+              activeIndex: _activeSentenceIndex,
+              pendingIndex: _pendingSentenceIndex,
+              onSentenceTap: _selectSentence,
+            ),
+          ),
+          if (_pendingSentenceIndex != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _pendingSentenceIndex = null),
+                      child: const Text('Cancelar seleção'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _confirmSentenceSelection,
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('Continuar da frase ${_pendingSentenceIndex! + 1}'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: AudioPlayerControlBar(
+              playerService: _audioPlayer,
+              currentState: _audioState,
+              currentPosition: _currentPosition,
+              totalDuration: _totalDuration,
+              currentSpeed: _currentSpeed,
+              onPlayPausePressed: () {
+                if (_audioState == TTSAudioState.playing) {
+                  _audioPlayer.pause();
+                } else if (!_isStreaming) {
+                  _runMvpPipeline(startSentenceIndex: _activeSentenceIndex);
+                } else {
+                  _audioPlayer.play();
+                }
+              },
+              onStopPressed: () {
+                unawaited(_stopStreamingPipeline());
+                unawaited(_audioPlayer.stop());
+              },
+              onSeekChanged: (position) => _audioPlayer.seek(position),
+              onSpeedChanged: (speed) {
+                setState(() => _currentSpeed = speed);
+                _audioPlayer.setSpeed(speed);
+              },
+              onOpenMOSDialog: _showMOSDialog,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isReaderOpen) return _buildReaderScaffold();
+
+    final sentencesList = _chapterSentences.isNotEmpty
+        ? _chapterSentences
+        : (_lastResult?.items.map((i) => i.normalizedText).toList() ?? []);
+    final activeEngineLabel =
+        _engine.activeType?.label ?? 'Nenhum motor inicializado';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'PRIMEIRO MVP (Demonstração TCC)',
+          'Leitor EPUB & Player Neural (TCC UEFS)',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         elevation: 0,
         backgroundColor: const Color(0xFF1E293B),
         actions: [
+          if (_savedMOSRatings.isNotEmpty)
+            Chip(
+              avatar: const Icon(
+                Icons.star,
+                color: Color(0xFFF59E0B),
+                size: 16,
+              ),
+              label: Text(
+                'MOS: ${(_savedMOSRatings.map((r) => r.averageScore).reduce((a, b) => a + b) / _savedMOSRatings.length).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              backgroundColor: const Color(0xFF334155),
+            ),
           if (_lastResult != null)
             IconButton(
-              icon: const Icon(Icons.assignment_outlined, color: Color(0xFF34D399)),
+              icon: const Icon(
+                Icons.assignment_outlined,
+                color: Color(0xFF34D399),
+              ),
               tooltip: 'Ver Relatório para o Orientador',
               onPressed: _showAcademicReportDialog,
             ),
@@ -166,26 +625,33 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Banner do Livro EPUB (Fase 4)
             if (_loadedBook != null) ...[
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF6366F1), width: 1.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF6366F1),
+                    width: 1.5,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.auto_stories, color: Color(0xFF818CF8), size: 30),
+                        const Icon(
+                          Icons.auto_stories,
+                          color: Color(0xFF818CF8),
+                          size: 26,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -195,28 +661,33 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                                 _loadedBook!.title,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(height: 2),
                               Text(
                                 'Autor: ${_loadedBook!.author} | UEFS 2026',
-                                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 24, color: Color(0xFF334155)),
+                    const Divider(height: 16, color: Color(0xFF334155)),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         DropdownButton<EpubChapter>(
                           value: _currentChapter,
                           dropdownColor: const Color(0xFF1E293B),
-                          style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontWeight: FontWeight.bold,
+                          ),
                           items: _loadedBook!.chapters.map((chap) {
                             return DropdownMenuItem(
                               value: chap,
@@ -227,14 +698,21 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
                             if (selected != null) {
                               setState(() {
                                 _currentChapter = selected;
+                                _prepareChapterSentences();
+                                _pendingSentenceIndex = null;
                                 _lastResult = null;
+                                unawaited(_stopStreamingPipeline());
+                                _audioPlayer.stop();
                               });
                             }
                           },
                         ),
                         Text(
                           '${_currentChapter?.wordCount ?? 0} palavras',
-                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
@@ -243,35 +721,118 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
               ),
             ],
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isProcessing ? null : _importEpub,
+              icon: const Icon(Icons.file_open),
+              label: const Text('Importar EPUB do dispositivo'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _importStatus,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+            ),
 
-            // Botão Executar MVP Pipeline
+            // Indicador de Motor TTS Neural Ativo
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF334155)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.record_voice_over,
+                    color: Color(0xFF38BDF8),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Motor:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButton<TTSEngineType>(
+                      value: _engine.selectedType,
+                      isExpanded: true,
+                      dropdownColor: const Color(0xFF1E293B),
+                      items: _selectableEngineTypes
+                          .map(
+                            (type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(
+                                type.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _isProcessing
+                          ? null
+                          : (type) {
+                              if (type != null) _switchEngine(type);
+                            },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Ativo: $activeEngineLabel',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Botão Sintetizar Capítulo
             ElevatedButton.icon(
               onPressed: _isProcessing ? null : _runMvpPipeline,
               icon: _isProcessing
                   ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
-                  : const Icon(Icons.play_arrow_rounded, size: 28),
+                  : const Icon(Icons.play_arrow_rounded, size: 24),
               label: Text(
-                _isProcessing ? 'Sintetizando Capítulo em Tempo Real...' : 'Executar Pipeline do Primeiro MVP',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                _isProcessing
+                    ? 'Sintetizando Capítulo em Tempo Real...'
+                    : 'Sintetizar & Reproduzir Áudio Neural',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                elevation: 4,
               ),
             ),
 
             if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -285,137 +846,66 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
               ),
             ],
 
-            if (_lastResult != null) ...[
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Sentenças Sintetizadas (${_lastResult!.totalSentences}):',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Color(0xFF38BDF8),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _showAcademicReportDialog,
-                    icon: const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF34D399)),
-                    label: const Text('Relatório TCC', style: TextStyle(color: Color(0xFF34D399))),
-                  ),
-                ],
+            // ÁREA PRINCIPAL: Sentenças em destaque + Player de Áudio
+            if (_isStreaming || _lastResult != null || sentencesList.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Expanded(
+                child: SentenceHighlightView(
+                  sentences: sentencesList,
+                  activeIndex: _activeSentenceIndex,
+                  pendingIndex: _pendingSentenceIndex,
+                  onSentenceTap: _selectSentence,
+                ),
               ),
-              const SizedBox(height: 8),
-
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _lastResult!.items.length,
-                itemBuilder: (context, index) {
-                  final item = _lastResult!.items[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: item.rawSentence.isParagraphEnd
-                            ? const Color(0xFF6366F1)
-                            : const Color(0xFF334155),
+              if (_pendingSentenceIndex != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(() => _pendingSentenceIndex = null),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Cancelar seleção'),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Sentença #${item.rawSentence.index + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF818CF8),
-                                fontSize: 13,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F2942),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                'RTF: ${item.metrics.rtf.toStringAsFixed(3)}',
-                                style: const TextStyle(
-                                  color: Color(0xFF38BDF8),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isProcessing ? null : _confirmSentenceSelection,
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(
+                          'Continuar da frase ${_pendingSentenceIndex! + 1}',
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Original: ${item.rawSentence.text}',
-                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Normalizado: ${item.normalizedText}',
-                          style: const TextStyle(
-                            color: Color(0xFFE0F2FE),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Resumo de Telemetria Global do MVP
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF064E3B),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFF10B981)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Total Áudio: ${_lastResult!.totalAudioDurationSeconds.toStringAsFixed(2)}s',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'RTF Global: ${_lastResult!.overallRtf.toStringAsFixed(4)}',
-                          style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: const [
-                        Icon(Icons.check_circle_outline, color: Color(0xFF34D399), size: 18),
-                        SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Status RNF-02: APROVADO (Inferência sem travamentos em tempo real)',
-                            style: TextStyle(color: Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
+              ],
+              const SizedBox(height: 12),
+              AudioPlayerControlBar(
+                playerService: _audioPlayer,
+                currentState: _audioState,
+                currentPosition: _currentPosition,
+                totalDuration: _totalDuration,
+                currentSpeed: _currentSpeed,
+                onPlayPausePressed: () {
+                  if (_audioState == TTSAudioState.playing) {
+                    _audioPlayer.pause();
+                  } else {
+                    _audioPlayer.play();
+                  }
+                },
+                onStopPressed: () {
+                  unawaited(_stopStreamingPipeline());
+                  unawaited(_audioPlayer.stop());
+                  if (mounted) setState(() => _isProcessing = false);
+                },
+                onSeekChanged: (pos) => _audioPlayer.seek(pos),
+                onSpeedChanged: (speed) {
+                  setState(() => _currentSpeed = speed);
+                  _audioPlayer.setSpeed(speed);
+                },
+                onOpenMOSDialog: _showMOSDialog,
               ),
             ],
           ],
@@ -431,7 +921,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Relatório Oficial de Desempenho (TCC)', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Relatório Oficial de Desempenho (TCC)',
+          style: TextStyle(color: Colors.white),
+        ),
         content: SingleChildScrollView(
           child: SelectableText(
             _lastResult!.generateAcademicReport(),
@@ -445,7 +938,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Fechar', style: TextStyle(color: Color(0xFF6366F1))),
+            child: const Text(
+              'Fechar',
+              style: TextStyle(color: Color(0xFF6366F1)),
+            ),
           ),
         ],
       ),
@@ -468,15 +964,18 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
               Text(
-                'Primeiro MVP de Demonstração (Milestone 1)',
+                'Fase 6: Audio Player & MOS Evaluation (Milestone 2)',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 12),
-              Text('• Fase 4: Extração de Texto EPUB por Capítulos (EpubParser).'),
-              Text('• Fase 3: Fatiador de Sentenças (SentenceSegmenter).'),
-              Text('• Fase 2: Normalizador Gramatical em PT-BR (TTSNormalizer).'),
-              Text('• Fase 1: Engine de Inferência Neural ONNX (Sherpa-ONNX Core).'),
-              Text('• Fachada: PipelineOrchestrator com Telemetria de RTF.'),
+              Text('• AudioPlayerService (audioplayers wrapper).'),
+              Text(
+                '• SentenceHighlightView (sincronização de sentença e áudio em tempo real).',
+              ),
+              Text(
+                '• MOSEvaluationDialog (avaliação perceptual do orientador de 1 a 5 estrelas).',
+              ),
+              Text('• Controle de velocidade (0.75x - 2.0x) e Seekbar.'),
               SizedBox(height: 16),
             ],
           ),

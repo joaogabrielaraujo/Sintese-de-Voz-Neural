@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tcc_tts_neural/core/engine/mock_tts_engine.dart';
 
 void main() {
-  group('TTSEngine - Testes de Integração de Inferência Neural', () {
+  group('MockTTSEngine - testes unitários', () {
     late MockTTSEngine engine;
 
     setUp(() {
@@ -19,16 +19,26 @@ void main() {
       expect(engine.isInitialized, isTrue);
     });
 
-    test('Deve sintetizar texto em Português e gerar amostras válidas de áudio', () async {
-      const String text = 'Testando inferência de voz neural offline em Flutter.';
-      
-      final result = await engine.synthesizeWithMetrics(text);
+    test(
+      'Deve sintetizar texto em Português e gerar amostras válidas de áudio',
+      () async {
+        const String text =
+            'Testando inferência de voz neural offline em Flutter.';
 
-      expect(result.audio.samples.isNotEmpty, isTrue);
-      expect(result.audio.durationInSeconds, greaterThan(0.5));
-      expect(result.metrics.rtf, lessThan(1.0));
-      expect(result.metrics.isRealTime, isTrue);
-    });
+        final result = await engine.synthesizeWithMetrics(text);
+
+        expect(result.audio.samples.isNotEmpty, isTrue);
+        final nonZeroRatio =
+            result.audio.samples
+                .where((sample) => sample.abs() > 0.00001)
+                .length /
+            result.audio.samples.length;
+        expect(nonZeroRatio, greaterThan(0.1));
+        expect(result.audio.durationInSeconds, greaterThan(0.5));
+        expect(result.metrics.rtf, lessThan(1.0));
+        expect(result.metrics.isRealTime, isTrue);
+      },
+    );
 
     test('Deve retornar buffer vazio para strings em branco', () async {
       final audio = await engine.synthesize('   ');

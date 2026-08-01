@@ -1,0 +1,118 @@
+0	0
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+a	a
+aprovacao	a p r o v a c a o
+aprovaco	a p r o v a c o
+aprovou	a p r o v o u
+arquitetura	a r q u i t e t u r a
+audio	a u d i o
+b	b
+c	c
+camadas	c a m a d a s
+capitulo	c a p i t u l o
+captulo	c a p t u l o
+cem	c e m
+cento	c e n t o
+cinco	c i n c o
+cinquenta	c i n q u e n t a
+com	c o m
+constante	c o n s t a n t e
+consumo	c o n s u m o
+core	c o r e
+custando	c u s t a n d o
+d	d
+dart	d a r t
+de	d e
+desacopladas	d e s a c o p l a d a s
+desenvolvidos	d e s e n v o l v i d o s
+dez	d e z
+dispositivo	d i s p o s i t i v o
+divididos	d i v i d i d o s
+do	d o
+dois	d o i s
+doutor	d o u t o r
+e	e
+em	e m
+esta	e s t a
+execucao	e x e c u c a o
+f	f
+foram	f o r a m
+fundamentacao	f u n d a m e n t a c a o
+fundamentaco	f u n d a m e n t a c o
+fundamentos	f u n d a m e n t o s
+g	ɡ
+garante	ɡ a r a n t e
+h	h
+i	i
+j	j
+julho	j u l h o
+k	k
+l	l
+leitura	l e i t u r a
+livro	l i v r o
+m	m
+matheus	m a t h e u s
+mdulos	m d u l o s
+memoria	m e m o r i a
+memria	m e m r i a
+mil	m i l
+modular	m o d u l a r
+modulos	m o d u l o s
+movel	m o v e l
+mvel	m v e l
+n	n
+na	n a
+neural	n e u r a l
+no	n o
+nove	n o v e
+o	o
+objetivos	o b j e t i v o s
+offline	o f f l i n e
+oito	o i t o
+opera	o p e r a
+os	o s
+p	p
+pagina	p a ɡ i n a
+pesquisa	p e s q u i s a
+por	p o r
+primeira	p r i m e i r a
+processamento	p r o c e s s a m e n t o
+q	q
+quatro	q u a t r o
+r	r
+ram	r a m
+reais	r e a i s
+real	r e a l
+rtf	r t f
+s	s
+seis	s e i s
+sete	s e t e
+sintese	s i n t e s e
+sntese	s n t e s e
+t	t
+tcc	t c c
+tempo	t e m p o
+texto	t e x t o
+tres	t r e s
+trs	t r s
+u	u
+uefs	u e f s
+um	u m
+v	v
+versao	v e r s a o
+verso	v e r s o
+vinte	v i n t e
+voz	v o z
+w	w
+x	x
+y	y
+z	z
+zero	z e r o
