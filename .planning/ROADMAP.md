@@ -107,12 +107,29 @@ Este roadmap foi reestruturado de forma **altamente modular e incremental**. Cad
 - **Plans:** 7 plans
 
 Plans:
+**Wave 1**
+
 - [x] 14-PLAN.md — Redesign editorial responsivo executado
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14-02-PLAN.md — Identidade EPUB e persistência transacional recuperável
 - [ ] 14-03-PLAN.md — Cancelamento e substituição segura de streaming
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14-04-PLAN.md — Progresso durável e estados coerentes de biblioteca/importação
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14-05-PLAN.md — Tracer de telemetria RTF a partir do streaming real
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 14-06-PLAN.md — MOS, relatório, fila e memória alcançáveis
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 14-07-PLAN.md — Gestos estáveis e cobertura responsiva final
 - **Status**: Em planejamento
 
