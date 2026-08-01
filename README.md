@@ -514,6 +514,10 @@ A seleção e a ação de interromper/reiniciar áudio são operações diferent
 
 ## 13. Próximas fases
 
+### Release candidate Android e validação via USB
+
+Antes da telemetria, o projeto terá uma versão candidata instalada em um aparelho físico. O roteiro inclui `flutter doctor -v`, autorização ADB, execução com `flutter run -d <device-id>`, instalação de APK com `adb install -r` e repetição do fluxo com um EPUB grande real. Serão avaliados importação, inicialização do modelo, primeira frase, transições, seleção confirmada, retorno ao Home, troca de capítulo e comportamento offline.
+
 ### Renderização fiel do XHTML
 
 Substituir a apresentação textual simplificada por uma renderização do XHTML original do capítulo, preservando títulos, parágrafos, itálico, negrito, listas e imagens quando suportados. As frases continuarão recebendo IDs internos para sincronização.
