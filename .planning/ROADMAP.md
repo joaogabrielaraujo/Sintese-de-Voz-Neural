@@ -104,6 +104,16 @@ Este roadmap foi reestruturado de forma **altamente modular e incremental**. Cad
 - **Foco**: Aplicar a linguagem visual do `design_mockup.html` ao aplicativo Flutter, com biblioteca, leitor sincronizado e player responsivo.
 - **Plataformas**: Layout mobile para Android e layout adaptado para mouse, teclado e janelas largas no Windows.
 - **Critério**: A nova UI preserva o pipeline offline, as métricas RTF/MOS/memória e os fluxos de importação e leitura existentes.
+- **Plans:** 7 plans
+
+Plans:
+- [x] 14-PLAN.md — Redesign editorial responsivo executado
+- [ ] 14-02-PLAN.md — Identidade EPUB e persistência transacional recuperável
+- [ ] 14-03-PLAN.md — Cancelamento e substituição segura de streaming
+- [ ] 14-04-PLAN.md — Progresso durável e estados coerentes de biblioteca/importação
+- [ ] 14-05-PLAN.md — Tracer de telemetria RTF a partir do streaming real
+- [ ] 14-06-PLAN.md — MOS, relatório, fila e memória alcançáveis
+- [ ] 14-07-PLAN.md — Gestos estáveis e cobertura responsiva final
 - **Status**: Em planejamento
 
 ### Phase 15: Suite de Testes de Carga, Telemetria & Avaliação Quantitativa
