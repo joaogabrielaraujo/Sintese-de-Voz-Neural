@@ -1,10 +1,10 @@
 ---
-phase: 14-telemetria-tcc
+phase: 15-telemetria-tcc
 status: planned
-depends_on: [13.7]
+depends_on: [14]
 ---
 
-# Fase 14 — Telemetria e avaliação quantitativa para o TCC
+# Fase 15 — Telemetria e avaliação quantitativa para o TCC
 
 ## Objetivo
 
@@ -36,4 +36,3 @@ Medir o comportamento do sistema em aparelho real após o release candidate esta
 - roteiro reproduzível de teste;
 - descrição do aparelho e ambiente;
 - análise dos resultados para a monografia.
-

@@ -1,13 +1,13 @@
 ---
-phase: 14-telemetria-tcc
+phase: 15-telemetria-tcc
 plan: 01
 type: execute
 wave: 1
-depends_on: [13.7]
+depends_on: [14]
 autonomous: false
 ---
 
-# Plano 14 — Coletar métricas no aparelho real
+# Plano 15 — Coletar métricas no aparelho real
 
 ## Tarefas
 
@@ -22,4 +22,3 @@ autonomous: false
 ## Critério de aceite
 
 Os dados permitem afirmar, com aparelho e versão do modelo identificados, se a pipeline acompanha a reprodução e qual é o custo de memória, CPU e latência em livros de tamanhos diferentes.
-
