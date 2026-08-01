@@ -19,7 +19,8 @@ void main() {
       mockPlayer.dispose();
     });
 
-    testWidgets('AudioPlayerControlBar exibe botões e sliders corretamente', (WidgetTester tester) async {
+    testWidgets('AudioPlayerControlBar exibe botões e sliders corretamente',
+        (WidgetTester tester) async {
       bool playPauseCalled = false;
       bool stopCalled = false;
       bool mosDialogCalled = false;
@@ -58,7 +59,8 @@ void main() {
       expect(mosDialogCalled, isTrue);
     });
 
-    testWidgets('SentenceHighlightView destaca sentença ativa', (WidgetTester tester) async {
+    testWidgets('SentenceHighlightView destaca sentença ativa',
+        (WidgetTester tester) async {
       final sentences = [
         'Primeira sentença em áudio.',
         'Segunda sentença normalizada.',
@@ -78,10 +80,12 @@ void main() {
 
       expect(find.text('Primeira sentença em áudio.'), findsOneWidget);
       expect(find.text('Segunda sentença normalizada.'), findsOneWidget);
-      expect(find.byIcon(Icons.volume_up), findsOneWidget); // Ícone na sentença ativa (#2)
+      expect(find.byIcon(Icons.volume_up),
+          findsOneWidget); // Ícone na sentença ativa (#2)
     });
 
-    testWidgets('MOSEvaluationDialog permite salvar notas do MOS', (WidgetTester tester) async {
+    testWidgets('MOSEvaluationDialog permite salvar notas do MOS',
+        (WidgetTester tester) async {
       MOSRating? savedRating;
 
       await tester.pumpWidget(

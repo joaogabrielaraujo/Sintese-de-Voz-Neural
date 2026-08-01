@@ -4,7 +4,8 @@ import 'package:tcc_tts_neural/main.dart';
 void main() {
   testWidgets('TCCNeuralApp smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const TCCNeuralApp());
-    expect(find.textContaining('Leitor EPUB'), findsOneWidget);
-    expect(find.text('Importar EPUB do dispositivo'), findsOneWidget);
+    expect(find.text('VozLume'), findsWidgets);
+    expect(find.text('OFFLINE'), findsOneWidget);
+    expect(find.text('Importar EPUB'), findsOneWidget);
   });
 }
