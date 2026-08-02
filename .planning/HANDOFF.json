@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-01T22:36:12.770Z",
+  "timestamp": "2026-08-02T22:15:03.927Z",
   "phase": "14",
   "phase_name": "ui-redesign",
   "phase_dir": ".planning/phases/14-ui-redesign",
@@ -9,27 +9,109 @@
   "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"id": "14-02", "name": "Persistência EPUB resistente a colisões", "status": "done", "commit": "5fc8bb0"},
-    {"id": "14-03", "name": "Cancelamento de stream e próxima frase preparada", "status": "done", "commit": "cf5acc7"},
-    {"id": "RF-07", "name": "Primeira fatia de sumário e imagens EPUB", "status": "done", "commit": "013ffaa"}
+    {
+      "id": "android-jdk",
+      "name": "Registrar o JDK 21 do Android Studio no Flutter",
+      "status": "done",
+      "progress": "Flutter configurado com D:\\Program Files\\Android\\Android Studio\\jbr; Gradle 9.1.0 validado."
+    },
+    {
+      "id": "android-gradle",
+      "name": "Corrigir compilacao Android ARM64 com AGP 9",
+      "status": "done",
+      "progress": "file_picker recebe Kotlin plugin/JVM 17 e o APK fica limitado a arm64-v8a; mudancas continuam nao commitadas."
+    },
+    {
+      "id": "android-release-apk",
+      "name": "Gerar e validar APK release ARM64 assinado",
+      "status": "done",
+      "progress": "app-release.apk gerado, assinatura v2 RSA 4096 verificada, somente ABI arm64-v8a, SHA-256 EEFB29AD9CDEBC9E4973924245BFE1CCEB31D07E0B18E6743EEC1022E832760B."
+    },
+    {
+      "id": "android-process-cleanup",
+      "name": "Encerrar daemons pesados apos o build",
+      "status": "done",
+      "progress": "GradleDaemon e KotlinCompileDaemon encerrados; nenhum processo Java do build ficou ativo."
+    }
   ],
   "remaining_tasks": [
-    {"id": "14-04", "name": "Progresso durável e estados de biblioteca/importação", "status": "not_started"},
-    {"id": "14-05", "name": "RTF ao vivo no streaming", "status": "not_started"},
-    {"id": "14-06", "name": "MOS, relatório, fila e memória na produção", "status": "not_started"},
-    {"id": "14-07", "name": "UAT Android/Windows e responsividade final", "status": "not_started"},
-    {"id": "RF-07-follow-up", "name": "Suporte toc.ncx e hierarquia visual completa do sumário", "status": "not_started"}
+    {
+      "id": "android-device-uat",
+      "name": "Conectar o Motorola G85, instalar e abrir a build corrigida",
+      "status": "not_started"
+    },
+    {
+      "id": "android-runtime-uat",
+      "name": "Validar picker EPUB, TTS offline, audio e persistencia no aparelho",
+      "status": "not_started"
+    },
+    {
+      "id": "14-04",
+      "name": "Progresso duravel e estados de biblioteca/importacao",
+      "status": "not_started"
+    },
+    {
+      "id": "14-05-14-06",
+      "name": "Conectar metricas reais de streaming a UI",
+      "status": "not_started"
+    },
+    {
+      "id": "14-07",
+      "name": "Concluir UAT Android e Windows da fase",
+      "status": "not_started"
+    }
   ],
-  "blockers": [],
+  "blockers": [
+    {
+      "description": "O Motorola G85 nao esta conectado; a execucao nativa ainda nao foi verificada.",
+      "type": "human_action",
+      "workaround": "Conectar o aparelho, autorizar depuracao USB e confirmar o identificador em flutter devices."
+    },
+    {
+      "description": "O APK anteriormente instalado era debug; a build release usa outra assinatura e pode exigir desinstalacao antes da instalacao.",
+      "type": "human_action",
+      "workaround": "Tentar instalar primeiro. Se ocorrer INSTALL_FAILED_UPDATE_INCOMPATIBLE, obter aprovacao do usuario antes de desinstalar com.example.tcc_tts_neural; confirmar o applicationId real antes do comando."
+    }
+  ],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "Executar UAT Android após concluir 14-04 a 14-07", "context": "Métricas reais de RTF, MOS, fila e memória ainda não estão conectadas ao fluxo de produção.", "blocking": true}
+    {
+      "action": "Conectar o Motorola G85 e autorizar a depuracao USB.",
+      "context": "Sem o aparelho nao e possivel comprovar flutter run, instalacao, abertura ou o fluxo TTS real.",
+      "blocking": true
+    },
+    {
+      "action": "Fornecer novamente a credencial da chave somente se for necessario reconstruir o release.",
+      "context": "A chave local esta fora do repositorio e a senha nao foi gravada nos artefatos GSD.",
+      "blocking": false
+    }
   ],
   "decisions": [
-    {"decision": "Pré-carregar no máximo uma próxima frase", "rationale": "Remove a espera de síntese/fila na troca normal sem aumentar memória nem mascarar a latência com delays.", "phase": "14"},
-    {"decision": "Sumário EPUB é a fonte de verdade e imagens permanecem visuais", "rationale": "nav.xhtml deve prevalecer sobre h1; imagens internas são renderizadas e nunca enviadas à TTS.", "phase": "14"}
+    {
+      "decision": "Usar o JDK 21 incluido no Android Studio do disco D.",
+      "rationale": "E o JDK existente e validado com Gradle 9.1.0; o Flutter ja foi configurado com esse caminho.",
+      "phase": "14"
+    },
+    {
+      "decision": "Gerar release somente para arm64-v8a.",
+      "rationale": "O Motorola G85 e ARM64 e a exclusao das ABIs de emulador/32-bit reduz o pacote de teste.",
+      "phase": "14"
+    },
+    {
+      "decision": "Manter a chave release fora do Git.",
+      "rationale": "Credenciais e material de assinatura nao devem entrar no repositorio; o handoff registra apenas caminho e alias.",
+      "phase": "14"
+    }
   ],
-  "uncommitted_files": [],
-  "next_action": "Retomar o plano 14-04; depois executar 14-05 e 14-06 antes de coletar métricas de MVP em Android.",
-  "context_notes": "A pausa entre frases foi validada pelo usuário como muito boa. Imagens EPUB foram testadas pelo usuário e funcionam perfeitamente. A primeira implementação RF-07 usa nav.xhtml, preserva imagens relativas e ignora alt/TTS; ainda falta toc.ncx e níveis hierárquicos visuais."
+  "uncommitted_files": [
+    "README.md",
+    "android/app/build.gradle.kts",
+    "android/build.gradle.kts",
+    "android/gradle.properties",
+    "android/gradle/wrapper/gradle-wrapper.properties",
+    "android/settings.gradle.kts",
+    "android/build/"
+  ],
+  "next_action": "Conectar o Motorola G85, rodar flutter devices e tentar flutter run -d idmobile. Se idmobile nao existir, usar o ID exibido. Confirmar abertura antes de testar EPUB/TTS; capturar adb logcat em qualquer crash.",
+  "context_notes": "O build release local foi concluido e validado sem o telefone. APK: build/app/outputs/flutter-apk/app-release.apk (111889790 bytes). Chave local: D:\\VoxReleaseKeys\\vox-g85-local-release.jks, alias vox-g85; a senha nao deve ser commitada. No ambiente Codex, definir GRADLE_USER_HOME=C:\\Users\\55759\\.gradle quando o Gradle tentar usar C:\\.gradle. Depois de qualquer build, encerrar os daemons Gradle/Kotlin porque o usuario pediu para nao deixar o JDK consumindo recursos."
 }
