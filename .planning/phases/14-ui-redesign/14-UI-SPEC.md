@@ -1,7 +1,7 @@
 ---
 phase: 14
 slug: ui-redesign
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-03
@@ -196,18 +196,18 @@ Mensagens devem explicar problema e próximo passo em português do Brasil. Não
 
 ## UI Considerations
 
-Considerações aplicáveis resolvidas: **8 cobertas, 0 backstop, 0 não resolvidas**.
+Sondagem pós-verificação: **32 combinações elemento/estado resolvidas em 8 categorias; 8 cobertas, 0 backstop, 0 não resolvidas**.
 
 | Categoria | Elemento(s) | Status | Resolução / motivo |
 |---|---|---|---|
-| empty | biblioteca, busca, capítulo, métricas | ✅ covered | Renderizar os textos vazios deste contrato; métricas ausentes usam `—` e não valores inventados. |
-| loading | importação, leitor, engine, síntese | ✅ covered | Preservar geometria, desabilitar repetição da ação, mostrar indicador local e anunciar mudança semântica. |
-| error | importação, engine, leitor, player | ✅ covered | Mostrar problema, ação recuperável e fallback parcial; preservar livro/progresso anterior. |
-| populated | biblioteca, capítulo, player | ✅ covered | Cards editoriais, texto contínuo e controles persistentes seguem as composições declaradas. |
-| partial | EPUB, telemetria | ✅ covered | Renderizar blocos válidos e imagens disponíveis; omitir campos ausentes sem quebrar o fluxo; mostrar métricas disponíveis individualmente. |
-| overflow | cards, navegação, texto, player | ✅ covered | Reflow/scroll primeiro; duas linhas para títulos; elipse só em metadados; controles usam `Wrap`; texto de leitura nunca é truncado. |
-| zero-one-many | biblioteca, busca, capítulos | ✅ covered | Zero usa estado vazio, um usa card completo sem grade artificial e muitos usam lista/grade rolável responsiva. |
-| long-text | título, autor, capítulo, status, conteúdo | ✅ covered | Títulos refluem em até duas linhas; status técnico usa elipse com tooltip/semântica; conteúdo EPUB reflowa integralmente. |
+| empty | biblioteca, leitor, métricas, ajustes/tema | ✅ covered | Renderizar os textos vazios deste contrato; métricas ausentes usam `—` e não valores inventados. |
+| loading | biblioteca, leitor, player, métricas, ajustes/tema | ✅ covered | Preservar geometria, desabilitar repetição da ação, mostrar indicador local e anunciar mudança semântica. |
+| error | biblioteca, leitor, player, métricas, ajustes/tema | ✅ covered | Mostrar problema, ação recuperável e fallback parcial; preservar livro e progresso anteriores. |
+| populated | biblioteca, leitor, métricas | ✅ covered | Cards editoriais, texto contínuo e controles persistentes seguem as composições declaradas. |
+| partial | biblioteca, métricas, ajustes/tema | ✅ covered | Renderizar blocos válidos e imagens disponíveis; omitir campos ausentes sem quebrar o fluxo; mostrar métricas disponíveis individualmente. |
+| overflow | biblioteca, leitor, player, métricas, ajustes/tema | ✅ covered | Reflow/scroll primeiro; duas linhas para títulos; elipse só em metadados; controles usam `Wrap`; texto de leitura nunca é truncado. |
+| zero-one-many | biblioteca, métricas | ✅ covered | Zero usa estado vazio, um usa card completo sem grade artificial e muitos usam lista/grade rolável responsiva. |
+| long-text | biblioteca, leitor, player, métricas, ajustes/tema | ✅ covered | Títulos refluem em até duas linhas; status técnico usa elipse com tooltip e semântica; conteúdo EPUB reflowa integralmente. |
 
 ---
 
@@ -232,11 +232,11 @@ Considerações aplicáveis resolvidas: **8 cobertas, 0 backstop, 0 não resolvi
 
 ## Checker Sign-Off
 
-- [ ] Dimensão 1 Copywriting: PASS
-- [ ] Dimensão 2 Visuals: PASS
-- [ ] Dimensão 3 Color: PASS
-- [ ] Dimensão 4 Typography: PASS
-- [ ] Dimensão 5 Spacing: PASS
-- [ ] Dimensão 6 Registry Safety: PASS
+- [x] Dimensão 1 Copywriting: PASS
+- [x] Dimensão 2 Visuals: PASS
+- [x] Dimensão 3 Color: PASS
+- [x] Dimensão 4 Typography: PASS
+- [x] Dimensão 5 Spacing: PASS
+- [x] Dimensão 6 Registry Safety: PASS
 
-**Aprovação:** pendente
+**Aprovação:** UI-SPEC VERIFIED — 2026-08-03
