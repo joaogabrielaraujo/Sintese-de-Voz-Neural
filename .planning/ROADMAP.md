@@ -104,33 +104,45 @@ Este roadmap foi reestruturado de forma **altamente modular e incremental**. Cad
 - **Foco**: Aplicar a linguagem visual do `design_mockup.html` ao aplicativo Flutter, com biblioteca, leitor sincronizado e player responsivo.
 - **Plataformas**: Layout mobile para Android e layout adaptado para mouse, teclado e janelas largas no Windows.
 - **Critério**: A nova UI preserva o pipeline offline, as métricas RTF/MOS/memória e os fluxos de importação e leitura existentes.
-- **Plans:** 7 plans
+- **Plans:** 10 plans
 
 Plans:
+**Executado**
+
+- [x] 14-PLAN.md — Base estrutural responsiva preservada
+
 **Wave 1**
 
-- [x] 14-PLAN.md — Redesign editorial responsivo executado
+- [ ] 14-02-PLAN.md — Tracer de fontes locais, temas e preferência persistida
+- [ ] 14-03-PLAN.md — Identidade EPUB e persistência transacional recuperável
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2**
 
-- [ ] 14-02-PLAN.md — Identidade EPUB e persistência transacional recuperável
-- [ ] 14-03-PLAN.md — Cancelamento e substituição segura de streaming
+- [ ] 14-04-PLAN.md — Cancelamento, ownership e handoff seguro de streaming
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3**
 
-- [ ] 14-04-PLAN.md — Progresso durável e estados coerentes de biblioteca/importação
+- [ ] 14-05-PLAN.md — Biblioteca/importação editorial com progresso durável
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4**
 
-- [ ] 14-05-PLAN.md — Tracer de telemetria RTF a partir do streaming real
+- [ ] 14-06-PLAN.md — Telemetria real metadata-only, fila e memória
 
-**Wave 5** *(blocked on Wave 4 completion)*
+**Wave 5**
 
-- [ ] 14-06-PLAN.md — MOS, relatório, fila e memória alcançáveis
+- [ ] 14-07-PLAN.md — Leitor contínuo, auto-scroll, player e painel técnico
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6**
 
-- [ ] 14-07-PLAN.md — Gestos estáveis e cobertura responsiva final
+- [ ] 14-08-PLAN.md — Acessibilidade, atalhos, estados e matriz responsiva
+
+**Wave 7**
+
+- [ ] 14-09-PLAN.md — Goldens determinísticos light/dark e fidelidade editorial
+
+**Wave 8**
+
+- [ ] 14-10-PLAN.md — UAT nativo Android/Windows e aprovação visual
 - **Status**: Em planejamento
 
 ### Phase 15: Suite de Testes de Carga, Telemetria & Avaliação Quantitativa
