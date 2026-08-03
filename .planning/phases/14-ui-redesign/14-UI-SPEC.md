@@ -120,11 +120,15 @@ O seletor em Ajustes deve oferecer `Sistema`, `Claro` e `Escuro`, iniciar em `Si
 | Busca vazia | `Nenhum livro corresponde à busca.` |
 | Importação em curso | `Importando EPUB…` |
 | Importação concluída | `EPUB importado com sucesso.` |
-| Erro de importação | `Não foi possível importar este EPUB. Verifique o arquivo e tente novamente.` |
+| Extensão de importação inválida | `Este arquivo não é um EPUB. Escolha um arquivo com a extensão .epub.` Ação: `Escolher outro arquivo`. |
+| EPUB inválido | `Não foi possível ler este EPUB. O arquivo pode estar incompleto ou corrompido.` Ação: `Escolher outro arquivo`. |
+| Erro de importação | `Não foi possível importar este EPUB. O arquivo anterior e sua biblioteca não foram alterados.` Ação: `Tentar importar novamente`. |
 | Conteúdo vazio | `Este capítulo não contém texto para leitura.` |
-| Engine indisponível | `A voz offline está indisponível. Revise o modelo em Ajustes e tente novamente.` |
-| Ação de recuperação | `Tentar novamente` |
-| Confirmação destrutiva | `Excluir livro?` — `A cópia salva e o progresso serão removidos deste dispositivo. O arquivo original não será alterado.` Botões: `Cancelar` e `Excluir livro`. |
+| Engine indisponível | `A voz offline está indisponível. Revise o modelo de voz antes de continuar.` Ação: `Abrir Ajustes`. |
+| Erro do leitor | `Não foi possível abrir este capítulo. O livro e sua posição de leitura continuam salvos.` Ação: `Tentar abrir capítulo novamente`. |
+| Erro de reprodução | `Não foi possível reproduzir este trecho. Sua posição de leitura foi mantida.` Ação primária: `Tentar reproduzir novamente`. Se a falha persistir, ação secundária: `Abrir Ajustes`. |
+| Relatório indisponível | `Não foi possível carregar o relatório de métricas agora. A leitura e a reprodução continuam disponíveis.` Ação: `Tentar carregar relatório novamente`. |
+| Confirmação destrutiva | `Excluir livro?` — `A cópia salva e o progresso serão removidos deste dispositivo. O arquivo original não será alterado.` Botões: `Manter livro` e `Excluir livro`. |
 
 Mensagens devem explicar problema e próximo passo em português do Brasil. Não expor exceções, caminhos internos ou códigos técnicos como mensagem principal; estes podem aparecer em uma área técnica expansível.
 
@@ -134,6 +138,7 @@ Mensagens devem explicar problema e próximo passo em português do Brasil. Não
 
 ### Biblioteca
 
+- **Elemento focal primário:** o card `Importar EPUB`, com borda tracejada e ícone de adição; a lista `Continuar lendo` é o segundo nível da hierarquia visual.
 - Cabeçalho com marca `VozLume`, subtítulo `Leitor neural de EPUB`, badge offline em musgo e chip da engine em sinal.
 - Card de importação com borda tracejada, ícone de adição, CTA e texto de privacidade. Durante importação, desabilitar novo acionamento, manter dimensão, mostrar progresso e anunciar o estado em região semântica viva.
 - Seção `Continuar lendo` com cards de livro: marca de capa ou capa real, número de catálogo, título, autor, regra de progresso, porcentagem em carimbo e menu contextual.
@@ -142,11 +147,12 @@ Mensagens devem explicar problema e próximo passo em português do Brasil. Não
 
 ### Leitor
 
+- **Elemento focal primário:** a coluna contínua do capítulo, com a frase ativa marcada pelo sublinhado ondulado em grifo; cabeçalho e player permanecem visualmente subordinados ao texto.
 - Cabeçalho com voltar, título do livro e subtítulo contextual; abaixo, seletor de capítulo e contagem de palavras.
 - O capítulo é uma coluna textual contínua, sem cards por frase. Imagens EPUB aparecem na posição original, ajustadas à largura e preservando proporção; alt text e imagens não entram no pipeline TTS, conforme RF-07.
 - Frase ativa usa texto normal, peso `600` e sublinhado ondulado na cor grifo. Seleção pendente usa colchetes/borda tracejada na cor sinal e exige confirmação antes de deslocar a reprodução.
 - O scroll acompanha a frase ativa apenas quando ela sai da área visível; nunca reposiciona continuamente enquanto a pessoa está rolando manualmente. Após interação manual, suspender auto-scroll até a próxima mudança de frase ou comando explícito.
-- A confirmação de retomada mostra frase escolhida e ações `Cancelar` e `Retomar daqui`, sem cobrir o texto selecionado em telas largas; no telefone pode usar bottom sheet.
+- A confirmação de retomada mostra frase escolhida e ações `Manter posição atual` e `Retomar daqui`, sem cobrir o texto selecionado em telas largas; no telefone pode usar bottom sheet.
 
 ### Player e telemetria
 
