@@ -67,7 +67,8 @@ class AbbreviationNormalizer {
 
   static final RegExp _romanRegex = RegExp(r'\b[IVXLCDM]{2,6}\b');
   static final RegExp _uppercaseWordRegex = RegExp(
-    r'\b[A-ZÁÉÍÓÚÃÕÂÊÔÇÜ]{2,}\b',
+    r'(?<=^|\s|[.,!?:;(])[A-ZÁÉÍÓÚÃÕÂÊÔÇÜ]{2,}(?=\s|$|[.,!?:;)])',
+    unicode: true,
   );
 
   /// Expande abreviações, símbolos, numerais romanos e siglas sem tratar
@@ -94,7 +95,7 @@ class AbbreviationNormalizer {
       final token = match.group(0)!;
       return _knownAcronyms[token] ?? token.toLowerCase();
     });
-    result = result.replaceAll(RegExp(r'\bÉ\b'), 'é');
+    result = result.replaceAll(RegExp(r'(?<=^|\s)É(?=\s|$|[.,!?:;])', unicode: true), 'é');
 
     return result;
   }

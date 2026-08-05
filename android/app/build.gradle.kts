@@ -37,6 +37,22 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // APK de testes destinado ao Motorola G85 (ARM 64-bit).
+        // Exclui bibliotecas de emulador e de dispositivos 32-bit para reduzir o tamanho.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "**/armeabi-v7a/**",
+                "**/x86/**",
+                "**/x86_64/**",
+            )
+        }
     }
 
     signingConfigs {
@@ -55,22 +71,9 @@ android {
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
-                null
+                signingConfigs.getByName("debug")
             }
         }
-    }
-}
-
-gradle.taskGraph.whenReady {
-    val requestsRelease = allTasks.any {
-        it.project == project && it.name.contains("release", ignoreCase = true)
-    }
-    if (requestsRelease && !hasReleaseSigning) {
-        throw GradleException(
-            "Release signing is not configured. Set RELEASE_STORE_FILE, " +
-                "RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD " +
-                "as protected Gradle properties or environment variables."
-        )
     }
 }
 

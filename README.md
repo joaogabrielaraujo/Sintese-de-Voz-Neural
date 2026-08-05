@@ -401,6 +401,32 @@ flutter run -d <id-do-dispositivo>
 
 O fluxo Android utiliza o seletor de documentos do sistema e não deve solicitar permissão ampla de armazenamento para selecionar um EPUB.
 
+### Registro de validação Android (2026-08-02)
+
+Foi gerado e instalado um APK de depuração em um Motorola moto g85 5G com Android 15. O primeiro teste confirmou a instalação e a arquitetura ARM64, mas a abertura do aplicativo encerrava o processo por um crash nativo (`SIGSEGV`) em `libdartjni.so`, durante a busca de classes JNI.
+
+A causa de compilação associada foi identificada no `file_picker` 11.x: sob AGP 9 o pacote deixava de ativar sua tarefa Kotlin, enquanto o registrador Java gerado pelo Flutter ainda referencia `FilePickerPlugin`. A configuração em `android/build.gradle.kts` agora ativa o compilador Kotlin apenas para esse módulo e fixa o alvo JVM em 17, em conformidade com o restante do projeto. A configuração também limita o APK de teste a `arm64-v8a`, apropriado para o G85.
+
+A build foi confirmada em modo offline, sem baixar dependências nem interagir com o celular:
+
+```powershell
+$env:JAVA_HOME = 'D:\Program Files\Android\Android Studio\jbr'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+cd android
+.\gradlew.bat :app:assembleDebug --no-daemon --offline --console=plain
+```
+
+O APK resultante fica em `build/app/outputs/flutter-apk/app-debug.apk`. O aviso sobre plugins que ainda usam Kotlin Gradle Plugin é de compatibilidade futura e não bloqueia a build atual.
+
+Na próxima sessão, com o celular conectado e a depuração USB autorizada, instalar a nova build e validar a abertura antes de testar a síntese:
+
+```powershell
+flutter install --debug
+flutter run -d <id-do-dispositivo> --debug
+```
+
+O celular não é necessário para compilar; ele só é necessário nas etapas de instalação, execução e captura de logs.
+
 ### Análise e testes
 
 ```bash

@@ -154,7 +154,7 @@ class PipelineResult {
         : 'REQUER OTIMIZAÇÃO (RTF >= 1.0)';
     return '''
 =====================================================================
-🎓 RELATÓRIO DE DESEMPENHO DO PRIMEIRO MVP - TCC SÍNTESE NEURAL (UEFS)
+RELATÓRIO DE DESEMPENHO DO PRIMEIRO MVP - TCC SÍNTESE NEURAL (UEFS)
 =====================================================================
 • Livro Processado     : $bookTitle
 • Capítulo             : $chapterTitle
@@ -165,7 +165,7 @@ class PipelineResult {
 • Duração do Áudio WAV : ${totalAudioDurationSeconds.toStringAsFixed(2)} s
 • Real-Time Factor (RTF): ${overallRtf.toStringAsFixed(4)}
 ---------------------------------------------------------------------
-📌 STATUS DO REQUISITO RNF-02 (Tempo Real): $status
+STATUS DO REQUISITO RNF-02 (Tempo Real): $status
 =====================================================================
 ''';
   }

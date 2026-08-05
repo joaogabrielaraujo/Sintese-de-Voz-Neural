@@ -35,6 +35,8 @@ class LibraryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
     final normalizedQuery = searchQuery.trim().toLowerCase();
     final visibleBooks = normalizedQuery.isEmpty
         ? books
@@ -48,7 +50,7 @@ class LibraryView extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 920),
+        constraints: const BoxConstraints(maxWidth: 960),
         child: ListView(
           key: const Key('library-scroll-view'),
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -78,7 +80,9 @@ class LibraryView extends StatelessWidget {
                 child: Text(
                   importStatus,
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.metric,
+                  style: AppTextStyles.statusMono.copyWith(
+                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
@@ -89,7 +93,7 @@ class LibraryView extends StatelessWidget {
             ],
             Text(
               searchMode ? 'Resultados' : 'Continuar lendo',
-              style: AppTextStyles.sectionTitle,
+              style: theme.textTheme.titleMedium ?? AppTextStyles.sectionTitle,
             ),
             const SizedBox(height: AppSpacing.md),
             if (visibleBooks.isEmpty)
@@ -99,11 +103,37 @@ class LibraryView extends StatelessWidget {
                 (book) => SavedBookTile(
                   record: book,
                   onOpen: () => onOpenBook(book),
-                  onDelete: () => onDeleteBook(book),
+                  onDelete: () => _confirmDelete(context, book),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, SavedBookRecord book) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remover livro'),
+        content: Text('Deseja remover "${book.title}" da biblioteca? O arquivo salvo e o progresso de leitura serão excluídos.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onDeleteBook(book);
+            },
+            child: Text(
+              'Remover',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -116,34 +146,37 @@ class _LibraryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       runAlignment: WrapAlignment.center,
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.sm,
       children: [
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('VozLume', style: AppTextStyles.sectionTitle),
-            SizedBox(height: AppSpacing.xs),
+            Text('VozLume', style: theme.textTheme.titleLarge ?? AppTextStyles.brandDisplay),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               'Leitor neural de EPUB',
-              style: TextStyle(color: AppColors.paperDim),
+              style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface),
             ),
           ],
         ),
         Wrap(
           spacing: AppSpacing.sm,
           children: [
-            const Chip(
-              avatar: Icon(Icons.offline_bolt, color: AppColors.teal, size: 16),
-              label: Text('OFFLINE'),
+            Chip(
+              avatar: Icon(Icons.offline_bolt, color: ext?.moss ?? theme.colorScheme.primary, size: 16),
+              label: const Text('OFFLINE'),
             ),
             Chip(
-              avatar: const Icon(
+              avatar: Icon(
                 Icons.graphic_eq,
-                color: AppColors.amber,
+                color: theme.colorScheme.primary,
                 size: 16,
               ),
               label: Text(engineStatus),
@@ -163,11 +196,14 @@ class _ImportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return Semantics(
       button: true,
       label: isProcessing ? 'Importando EPUB' : 'Importar EPUB',
       child: CustomPaint(
-        painter: _DashedBorderPainter(),
+        painter: _DashedBorderPainter(color: ext?.textWeak ?? theme.colorScheme.outline),
         child: InkWell(
           key: const Key('import-epub-card'),
           borderRadius: BorderRadius.circular(AppRadii.md),
@@ -182,29 +218,31 @@ class _ImportCard extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
-                  const Icon(Icons.add_to_photos, color: AppColors.amber),
+                  Icon(Icons.add_to_photos, color: theme.colorScheme.primary),
                 const SizedBox(width: AppSpacing.lg),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Importar EPUB',
                         style: TextStyle(
-                          color: AppColors.paper,
+                          color: theme.colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
                         'O arquivo permanece somente neste dispositivo.',
-                        style:
-                            TextStyle(color: AppColors.paperDim, fontSize: 12),
+                        style: TextStyle(
+                          color: ext?.textSoft ?? theme.colorScheme.onSurface,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.paperFaint),
+                Icon(Icons.chevron_right, color: ext?.textWeak ?? theme.colorScheme.outline),
               ],
             ),
           ),
@@ -215,12 +253,15 @@ class _ImportCard extends StatelessWidget {
 }
 
 class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  const _DashedBorderPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     const dash = 7.0;
     const gap = 5.0;
     final paint = Paint()
-      ..color = AppColors.paperFaint
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     final path = Path()
@@ -243,7 +284,7 @@ class _DashedBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) => oldDelegate.color != color;
 }
 
 class _EmptyLibrary extends StatelessWidget {
@@ -253,23 +294,26 @@ class _EmptyLibrary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return Container(
       key: const Key('empty-library-state'),
       padding: const EdgeInsets.all(AppSpacing.xxl),
       decoration: BoxDecoration(
-        color: AppColors.ink2,
+        color: ext?.card ?? theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Column(
         children: [
-          const Icon(Icons.menu_book_outlined, color: AppColors.paperFaint),
+          Icon(Icons.menu_book_outlined, color: ext?.textWeak ?? theme.colorScheme.outline),
           const SizedBox(height: AppSpacing.sm),
           Text(
             searchMode
                 ? 'Nenhum livro corresponde à busca.'
                 : 'Sua biblioteca ainda está vazia.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.paperDim),
+            style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface),
           ),
         ],
       ),
@@ -284,23 +328,24 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Semantics(
       liveRegion: true,
       child: Container(
         key: const Key('library-error-banner'),
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.coral.withValues(alpha: .16),
-          border: Border.all(color: AppColors.coral),
+          color: theme.colorScheme.error.withValues(alpha: .16),
+          border: Border.all(color: theme.colorScheme.error),
           borderRadius: BorderRadius.circular(AppRadii.md),
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.coral),
+            Icon(Icons.error_outline, color: theme.colorScheme.error),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child:
-                  Text(message, style: const TextStyle(color: AppColors.paper)),
+              child: Text(message, style: TextStyle(color: theme.colorScheme.onSurface)),
             ),
           ],
         ),
@@ -323,8 +368,11 @@ class SavedBookTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return Card(
-      color: AppColors.ink2,
+      color: ext?.card ?? theme.colorScheme.surface,
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: InkWell(
         key: Key('saved-book-${record.id}'),
@@ -339,10 +387,10 @@ class SavedBookTile extends StatelessWidget {
                 height: 60,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.amberDim,
+                  color: ext?.cardElevated ?? theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(AppRadii.sm),
                 ),
-                child: const Icon(Icons.auto_stories, color: AppColors.amber),
+                child: Icon(Icons.auto_stories, color: theme.colorScheme.primary),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -351,10 +399,10 @@ class SavedBookTile extends StatelessWidget {
                   children: [
                     Text(
                       record.title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.paper,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -363,25 +411,33 @@ class SavedBookTile extends StatelessWidget {
                       record.author,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.paperDim, fontSize: 12),
+                      style: TextStyle(
+                        color: ext?.textSoft ?? theme.colorScheme.onSurface,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     LinearProgressIndicator(
                       value: record.progress,
-                      minHeight: 4,
-                      backgroundColor: AppColors.line,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(AppColors.amber),
+                      minHeight: 2,
+                      backgroundColor: theme.colorScheme.outline,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        ext?.grifo ?? theme.colorScheme.primary,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text('${record.progressPercent}%', style: AppTextStyles.metric),
+              Text(
+                '${record.progressPercent}%',
+                style: AppTextStyles.statusMono.copyWith(
+                  color: ext?.textWeak ?? theme.colorScheme.onSurface,
+                ),
+              ),
               PopupMenuButton<String>(
                 tooltip: 'Opções do livro',
-                icon: const Icon(Icons.more_vert, color: AppColors.paperFaint),
+                icon: Icon(Icons.more_vert, color: ext?.textWeak ?? theme.colorScheme.outline),
                 onSelected: (value) {
                   if (value == 'delete') onDelete();
                 },

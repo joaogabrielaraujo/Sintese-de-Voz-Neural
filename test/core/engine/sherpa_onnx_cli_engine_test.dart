@@ -64,7 +64,7 @@ void main() {
       capturedArguments,
       contains('--vits-data-dir=${espeak.absolute.path}'),
     );
-    expect(capturedArguments!.last, 'texto & nao comando');
+    expect(capturedArguments!.last, 'texto & não comando');
     expect(audio.samples.any((sample) => sample != 0), isTrue);
     await engine.dispose();
   });

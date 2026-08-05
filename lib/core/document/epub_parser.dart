@@ -215,7 +215,17 @@ class EpubParser {
 
   /// Resolves archive paths while rejecting absolute paths and traversal.
   static String normalizeArchivePath(String path) {
-    final decoded = Uri.decodeFull(path.replaceAll('\\', '/'));
+    final sanitizedPath = path.replaceAll('\\', '/');
+    String decoded;
+    try {
+      decoded = Uri.decodeFull(sanitizedPath);
+    } catch (_) {
+      try {
+        decoded = Uri.decodeComponent(sanitizedPath);
+      } catch (_) {
+        decoded = sanitizedPath;
+      }
+    }
     if (decoded.startsWith('/') || RegExp(r'^[A-Za-z]:').hasMatch(decoded)) {
       throw const FormatException('Caminho EPUB absoluto não permitido.');
     }

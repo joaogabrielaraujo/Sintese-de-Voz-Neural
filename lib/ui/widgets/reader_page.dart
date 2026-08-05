@@ -69,6 +69,9 @@ class ReaderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.space): onPlayPause,
@@ -99,15 +102,21 @@ class ReaderPage extends StatelessWidget {
                   book.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15),
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   chapter.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.paperDim,
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontFamily: 'Spectral',
+                    fontFamilyFallback: const ['Georgia', 'serif'],
+                    color: ext?.textSoft ?? theme.colorScheme.onSurface,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -153,7 +162,7 @@ class ReaderPage extends StatelessWidget {
                   key: const Key('wide-reader-layout'),
                   children: [
                     Expanded(child: reading),
-                    const VerticalDivider(width: 1),
+                    VerticalDivider(width: 1, color: theme.colorScheme.outline),
                     SizedBox(width: 370, child: player),
                   ],
                 );
@@ -200,9 +209,12 @@ class _ReadingPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 780),
+        constraints: const BoxConstraints(maxWidth: 760),
         child: Column(
           children: [
             Padding(
@@ -219,12 +231,18 @@ class _ReadingPane extends StatelessWidget {
                       key: const Key('chapter-selector'),
                       value: chapter,
                       isExpanded: true,
-                      dropdownColor: AppColors.ink2,
+                      dropdownColor: ext?.card ?? theme.colorScheme.surface,
                       items: book.chapters
                           .map(
                             (item) => DropdownMenuItem<EpubChapter>(
                               value: item,
-                              child: Text(item.title),
+                              child: Text(
+                                item.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Spectral',
+                                  fontFamilyFallback: ['Georgia', 'serif'],
+                                ),
+                              ),
                             ),
                           )
                           .toList(growable: false),
@@ -234,8 +252,12 @@ class _ReadingPane extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
-                  Text('${chapter.wordCount} palavras',
-                      style: AppTextStyles.metric),
+                  Text(
+                    '${chapter.wordCount} palavras',
+                    style: AppTextStyles.statusMono.copyWith(
+                      color: ext?.textWeak ?? theme.colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -259,8 +281,8 @@ class _ReadingPane extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.ink3,
-                  border: Border.all(color: AppColors.line),
+                  color: ext?.card ?? theme.colorScheme.surface,
+                  border: Border.all(color: theme.colorScheme.outline),
                   borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
                 child: Wrap(
@@ -326,8 +348,11 @@ class _PlayerPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     return ColoredBox(
-      color: AppColors.ink,
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
         children: [
@@ -348,19 +373,34 @@ class _PlayerPane extends StatelessWidget {
                       synthesisStatus,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          AppTextStyles.metric.copyWith(color: AppColors.teal),
+                      style: AppTextStyles.statusMono.copyWith(
+                        color: ext?.moss ?? theme.colorScheme.primary,
+                      ),
                     ),
                   ),
                 ),
                 Text(
                   'Frase $activeSentence/$sentenceCount',
-                  style: AppTextStyles.metric,
+                  style: AppTextStyles.statusMono.copyWith(
+                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
+                  ),
                 ),
                 if (rtf != null) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  Text('RTF ${rtf!.toStringAsFixed(3)}',
-                      style: AppTextStyles.metric),
+                  Text(
+                    'RTF ${rtf!.toStringAsFixed(3)}',
+                    style: AppTextStyles.statusMono.copyWith(
+                      color: ext?.grifo ?? theme.colorScheme.primary,
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'RTF —',
+                    style: AppTextStyles.statusMono.copyWith(
+                      color: ext?.textWeak ?? theme.colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ],
             ),

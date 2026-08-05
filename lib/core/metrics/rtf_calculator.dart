@@ -27,7 +27,7 @@ class PerformanceMetrics {
     final String status = isRealTime ? 'FAVÓRAVEL (RTF < 1.0)' : 'ALERTA (RTF >= 1.0)';
     return '''
 =====================================================
-📊 TELEMETRIA DE DESEMPENHO (PoC NEURAL CORE)
+TELEMETRIA DE DESEMPENHO (PoC NEURAL CORE)
 =====================================================
 • Tempo de Inferência : ${inferenceTimeMs.toStringAsFixed(2)} ms (${(inferenceTimeMs / 1000).toStringAsFixed(3)} s)
 • Duração do Áudio   : ${audioDurationSeconds.toStringAsFixed(2)} s

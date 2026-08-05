@@ -1,13 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/text/sentence_model.dart';
 import '../../core/document/epub_model.dart';
+import '../../core/text/sentence_model.dart';
 import '../../core/text/sentence_segmenter.dart';
 import '../app_theme.dart';
 
-/// Renderiza o capítulo como texto contínuo; as frases recebem apenas uma
-/// marcação visual para sincronização, sem serem transformadas em cartões.
 class ReaderDocumentView extends StatefulWidget {
   final List<TextSentence> sentences;
   final int activeIndex;
@@ -30,17 +28,54 @@ class ReaderDocumentView extends StatefulWidget {
 
 class _ReaderDocumentViewState extends State<ReaderDocumentView> {
   final List<TapGestureRecognizer> _recognizers = [];
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _sentenceKeys = {};
+  bool _userHasScrolledManually = false;
+
+  @override
+  void didUpdateWidget(ReaderDocumentView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeIndex != widget.activeIndex) {
+      if (!_userHasScrolledManually) {
+        _scrollToActiveSentence();
+      }
+    }
+    if (oldWidget.pendingIndex != widget.pendingIndex && widget.pendingIndex != null) {
+      _userHasScrolledManually = false;
+      _scrollToActiveSentence();
+    }
+  }
+
+  void _scrollToActiveSentence() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final targetIndex = widget.pendingIndex ?? widget.activeIndex;
+      final key = _sentenceKeys[targetIndex];
+      if (key?.currentContext != null) {
+        final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+        Scrollable.ensureVisible(
+          key!.currentContext!,
+          duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 200),
+          alignment: 0.3,
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
     for (final recognizer in _recognizers) {
       recognizer.dispose();
     }
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
+
     for (final recognizer in _recognizers) {
       recognizer.dispose();
     }
@@ -48,82 +83,136 @@ class _ReaderDocumentViewState extends State<ReaderDocumentView> {
 
     final sentences = widget.sentences;
     if (sentences.isEmpty) {
-      return const Center(
-        child: Text('Nenhum conteúdo para leitura.',
-            style: TextStyle(color: AppColors.paperDim)),
+      return Center(
+        child: Text(
+          'Nenhum conteúdo para leitura.',
+          style: AppTextStyles.statusMono.copyWith(
+            color: ext?.textWeak ?? theme.colorScheme.onSurface,
+          ),
+        ),
       );
     }
 
-    final spans = <InlineSpan>[];
     InlineSpan spanFor(TextSentence sentence) {
       final isActive = sentence.index == widget.activeIndex;
       final isPending = sentence.index == widget.pendingIndex;
+      final key = _sentenceKeys.putIfAbsent(sentence.index, () => GlobalKey());
+
       final recognizer = TapGestureRecognizer()
-        ..onTap = () => widget.onSentenceTap?.call(sentence.index);
+        ..onTap = () {
+          setState(() => _userHasScrolledManually = false);
+          widget.onSentenceTap?.call(sentence.index);
+        };
       _recognizers.add(recognizer);
-      return TextSpan(
-          text: '${sentence.text}${sentence.isParagraphEnd ? '\n\n' : ' '}',
-          recognizer: recognizer,
-          style: AppTextStyles.reading.copyWith(
-            color: isActive || isPending ? AppColors.paper : AppColors.paperDim,
-            backgroundColor: isActive
-                ? AppColors.amberDim.withValues(alpha: 0.8)
-                : isPending
-                    ? AppColors.tealDim.withValues(alpha: 0.8)
-                    : Colors.transparent,
-            decoration: isActive || isPending ? TextDecoration.underline : null,
-            decorationColor: isActive ? AppColors.amber : AppColors.teal,
-            decorationStyle: isPending
-                ? TextDecorationStyle.dashed
-                : TextDecorationStyle.solid,
-            decorationThickness: 2,
-            fontWeight:
-                isActive || isPending ? FontWeight.w600 : FontWeight.normal,
+
+      final style = AppTextStyles.epubReading.copyWith(
+        color: isActive
+            ? (ext?.grifo ?? theme.colorScheme.primary)
+            : isPending
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
+        backgroundColor: isActive
+            ? (ext?.grifo ?? theme.colorScheme.primary).withValues(alpha: 0.12)
+            : isPending
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+        decoration: isActive
+            ? TextDecoration.underline
+            : isPending
+                ? TextDecoration.underline
+                : null,
+        decorationColor: isActive
+            ? (ext?.grifo ?? theme.colorScheme.primary)
+            : theme.colorScheme.primary,
+        decorationStyle: isPending
+            ? TextDecorationStyle.dashed
+            : TextDecorationStyle.wavy,
+        decorationThickness: 2,
+        fontWeight: isActive || isPending ? FontWeight.w600 : FontWeight.w400,
+      );
+
+      return WidgetSpan(
+        child: Semantics(
+          key: key,
+          label: isActive
+              ? 'Lendo agora: ${sentence.text}'
+              : isPending
+                  ? 'Selecionado para leitura: ${sentence.text}'
+                  : sentence.text,
+          child: Text.rich(
+            TextSpan(
+              text: '${sentence.text}${sentence.isParagraphEnd ? '\n\n' : ' '}',
+              recognizer: recognizer,
+              style: style,
+            ),
           ),
+        ),
       );
     }
 
-    for (final sentence in sentences) {
-      spans.add(spanFor(sentence));
-    }
-
+    Widget content;
     if (widget.contentBlocks.isEmpty) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
-        child: RichText(text: TextSpan(children: spans)),
+      final spans = sentences.map(spanFor).toList(growable: false);
+      content = RichText(text: TextSpan(children: spans));
+    } else {
+      var sentenceOffset = 0;
+      final children = <Widget>[];
+      for (final block in widget.contentBlocks) {
+        if (block case EpubTextBlock(:final text)) {
+          final blockSentences = SentenceSegmenter.segment(text);
+          final spans = <InlineSpan>[];
+          for (var i = 0; i < blockSentences.length; i++) {
+            final globalIndex = sentenceOffset + i;
+            if (globalIndex < sentences.length) {
+              spans.add(spanFor(sentences[globalIndex]));
+            }
+          }
+          sentenceOffset += blockSentences.length;
+          children.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: RichText(text: TextSpan(children: spans)),
+            ),
+          );
+        } else if (block case EpubImageBlock(:final bytes)) {
+          children.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                child: ExcludeSemantics(
+                  child: Image.memory(
+                    bytes,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+      }
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
       );
     }
 
-    var sentenceOffset = 0;
-    final children = <Widget>[];
-    for (final block in widget.contentBlocks) {
-      if (block case EpubTextBlock(:final text)) {
-        final count = SentenceSegmenter.segment(text).length;
-        final blockSentences = sentences
-            .skip(sentenceOffset)
-            .take(count)
-            .toList(growable: false);
-        sentenceOffset += blockSentences.length;
-        if (blockSentences.isNotEmpty) {
-          children.add(RichText(
-            text: TextSpan(children: blockSentences.map(spanFor).toList()),
-          ));
-        }
-      } else if (block case EpubImageBlock(:final bytes, :final resourcePath)) {
-        children.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-          child: Semantics(
-            image: true,
-            label: 'Imagem do EPUB: $resourcePath',
-            child: Image.memory(bytes, fit: BoxFit.contain),
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        _userHasScrolledManually = true;
+        return false;
+      },
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xl),
+            child: content,
           ),
-        ));
-      }
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+        ),
+      ),
     );
   }
 }

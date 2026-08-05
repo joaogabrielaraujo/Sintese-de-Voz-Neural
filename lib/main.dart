@@ -19,6 +19,7 @@ import 'core/text/sentence_segmenter.dart';
 import 'core/text/sentence_model.dart';
 import 'ui/widgets/mos_evaluation_dialog.dart';
 import 'ui/app_theme.dart';
+import 'ui/theme_preference.dart';
 import 'ui/widgets/library_view.dart';
 import 'ui/widgets/reader_page.dart';
 import 'ui/widgets/responsive_navigation_shell.dart';
@@ -29,16 +30,47 @@ void main() {
 }
 
 /// Aplicativo de Leitor EPUB Neural & Player de Áudio (Fase 6 - TCC UEFS).
-class TCCNeuralApp extends StatelessWidget {
-  const TCCNeuralApp({super.key});
+class TCCNeuralApp extends StatefulWidget {
+  final ThemePreferenceRepository? themePreferenceRepository;
+  const TCCNeuralApp({super.key, this.themePreferenceRepository});
+
+  @override
+  State<TCCNeuralApp> createState() => _TCCNeuralAppState();
+}
+
+class _TCCNeuralAppState extends State<TCCNeuralApp> {
+  late final ThemePreferenceRepository _themeRepo;
+  ThemeMode _themeMode = ThemeMode.system;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeRepo = widget.themePreferenceRepository ?? ThemePreferenceRepository();
+    unawaited(_loadTheme());
+  }
+
+  Future<void> _loadTheme() async {
+    final mode = await _themeRepo.load();
+    if (mounted) setState(() => _themeMode = mode);
+  }
+
+  void _onThemeModeChanged(ThemeMode mode) {
+    setState(() => _themeMode = mode);
+    unawaited(_themeRepo.save(mode));
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TCC - Leitor EPUB Neural & Player de Áudio',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      home: const PoCNeuralHomePage(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: _themeMode,
+      home: PoCNeuralHomePage(
+        themeMode: _themeMode,
+        onThemeModeChanged: _onThemeModeChanged,
+      ),
     );
   }
 }
@@ -48,6 +80,8 @@ class PoCNeuralHomePage extends StatefulWidget {
   final EpubBytesImporter importer;
   final PipelineOrchestrator? orchestrator;
   final IAudioPlayerService? audioPlayer;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   const PoCNeuralHomePage({
     super.key,
@@ -55,6 +89,8 @@ class PoCNeuralHomePage extends StatefulWidget {
     this.importer = const EpubBytesImporter(),
     this.orchestrator,
     this.audioPlayer,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   });
 
   @override
@@ -846,6 +882,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
             _engine.activeType?.label ?? 'Nenhum motor inicializado',
         isProcessing: _isProcessing,
         onEngineChanged: (type) => unawaited(_switchEngine(type)),
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
       );
     }
     return LibraryView(
@@ -864,24 +902,26 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
   }
 
   PreferredSizeWidget _buildHomeAppBar() {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
     return AppBar(
       title: const Text('VozLume'),
       actions: [
         if (_savedMOSRatings.isNotEmpty)
           Chip(
-            avatar: const Icon(Icons.star, color: AppColors.amber, size: 16),
+            avatar: Icon(Icons.star, color: ext?.grifo ?? theme.colorScheme.primary, size: 16),
             label: Text(
               'MOS ${(_savedMOSRatings.map((rating) => rating.averageScore).reduce((a, b) => a + b) / _savedMOSRatings.length).toStringAsFixed(2)}',
             ),
           ),
         if (_lastResult != null)
           IconButton(
-            icon: const Icon(Icons.assignment_outlined, color: AppColors.teal),
+            icon: Icon(Icons.assignment_outlined, color: ext?.moss ?? theme.colorScheme.primary),
             tooltip: 'Ver relatório de desempenho',
             onPressed: _showAcademicReportDialog,
           ),
         IconButton(
-          icon: const Icon(Icons.info_outline, color: AppColors.paperDim),
+          icon: Icon(Icons.info_outline, color: ext?.textSoft ?? theme.colorScheme.onSurface),
           tooltip: 'Sobre a arquitetura',
           onPressed: _showArchitectureInfo,
         ),

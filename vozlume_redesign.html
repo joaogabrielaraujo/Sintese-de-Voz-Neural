@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VozLume — redesign</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --papel:#E7DFC6;
+  --papel-cartao:#DED2AE;
+  --papel-cartao-2:#D6C99E;
+  --tinta:#242229;
+  --tinta-suave:#6B6355;
+  --tinta-fraca:#948C78;
+  --sinal:#2E5578;
+  --sinal-fraco:#3F6788;
+  --grifo:#A8402C;
+  --musgo:#4B5D3A;
+  --linha:rgba(36,34,41,0.16);
+  --font-serif:'Spectral', serif;
+  --font-sans:'Archivo', sans-serif;
+  --font-mono:'Space Mono', monospace;
+}
+.dark{
+  --papel:#262A22;
+  --papel-cartao:#2E332A;
+  --papel-cartao-2:#363C31;
+  --tinta:#E9E2C9;
+  --tinta-suave:#B3AC94;
+  --tinta-fraca:#83806C;
+  --sinal:#6E9BC1;
+  --sinal-fraco:#82ABD1;
+  --grifo:#C25A42;
+  --musgo:#93AC72;
+  --linha:rgba(233,226,201,0.14);
+}
+.dark .window{ box-shadow:0 20px 40px -18px rgba(0,0,0,0.55); border-color:rgba(233,226,201,0.14); }
+*{box-sizing:border-box; margin:0; padding:0;}
+body{ background:#C9BF9E; font-family:var(--font-sans); padding:48px 24px; }
+.canvas{ display:flex; gap:44px; flex-wrap:wrap; justify-content:center; align-items:flex-start; max-width:1400px; margin:0 auto; }
+.frame-group{ display:flex; flex-direction:column; align-items:center; gap:14px; }
+.frame-label{ font-family:var(--font-mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:#5A5340; }
+
+.window{
+  width:660px;
+  background:var(--papel);
+  border-radius:10px;
+  box-shadow:0 20px 40px -18px rgba(20,18,10,0.4);
+  overflow:hidden;
+  border:1px solid rgba(36,34,41,0.25);
+}
+.winbar{
+  height:34px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 14px; background:var(--papel-cartao); border-bottom:1px solid var(--linha);
+}
+.winbar .dots{ display:flex; gap:6px; }
+.winbar .dots i{ width:8px; height:8px; border-radius:50%; border:1.3px solid var(--tinta-fraca); display:block; }
+.winbar .name{ font-family:var(--font-mono); font-size:10.5px; color:var(--tinta-suave); }
+
+/* ===== HOME ===== */
+.home-body{ display:flex; height:560px; }
+.sidebar{
+  width:76px; background:var(--papel-cartao); border-right:1px solid var(--linha);
+  display:flex; flex-direction:column; align-items:center; padding-top:26px; gap:22px;
+}
+.navitem{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+.navitem .glyph{ width:22px; height:22px; border:1.4px solid var(--tinta-fraca); border-radius:4px; }
+.navitem.on .glyph{ border-color:var(--sinal); background:rgba(46,85,120,0.12); }
+.navitem span{ font-family:var(--font-mono); font-size:8.5px; color:var(--tinta-fraca); }
+.navitem.on span{ color:var(--sinal); }
+
+.main{ flex:1; padding:26px 30px; overflow:hidden; display:flex; flex-direction:column; }
+.brand-row{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+.brand{ font-family:var(--font-serif); font-size:26px; font-weight:600; color:var(--tinta); }
+.tagline{ font-size:12px; color:var(--tinta-suave); margin-top:2px; }
+.status-chips{ display:flex; gap:8px; }
+.chip{
+  display:flex; align-items:center; gap:6px;
+  font-family:var(--font-mono); font-size:10px; letter-spacing:0.02em;
+  padding:6px 10px; border-radius:20px; border:1px solid var(--linha);
+}
+.chip.off{ color:var(--musgo); border-color:rgba(75,93,58,0.4); }
+.chip.off .dot{ width:6px; height:6px; border-radius:50%; background:var(--musgo); }
+.chip.sig{ color:var(--sinal); border-color:rgba(46,85,120,0.35); }
+
+.import-card{
+  margin-top:20px; border:1.5px dashed var(--tinta-fraca); border-radius:8px;
+  padding:16px 18px; display:flex; align-items:center; gap:14px; cursor:pointer;
+}
+.import-icon{
+  width:34px; height:34px; border:1.4px solid var(--sinal); border-radius:6px;
+  display:flex; align-items:center; justify-content:center; color:var(--sinal); font-size:17px; font-weight:600;
+  flex-shrink:0;
+}
+.import-text .t1{ font-family:var(--font-sans); font-size:13.5px; font-weight:600; color:var(--tinta); }
+.import-text .t2{ font-size:11px; color:var(--tinta-suave); margin-top:2px; }
+.import-arrow{ margin-left:auto; color:var(--tinta-fraca); font-size:15px; }
+.empty-note{ text-align:center; font-family:var(--font-mono); font-size:10px; color:var(--tinta-fraca); margin:12px 0 18px; }
+
+.section-label{
+  font-family:var(--font-serif); font-style:italic; font-size:15px; color:var(--tinta);
+  margin-bottom:12px; border-bottom:1px solid var(--linha); padding-bottom:6px;
+}
+
+.card-list{ display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+.book-card{
+  position:relative; display:flex; gap:12px; align-items:center;
+  background:var(--papel-cartao); border:1px solid var(--linha); border-radius:6px;
+  padding:12px 14px;
+}
+.catalog-no{ font-family:var(--font-mono); font-size:9px; color:var(--tinta-fraca); position:absolute; top:6px; left:10px; }
+.cover-mark{
+  width:34px; height:44px; border:1.4px solid var(--tinta); border-radius:2px; margin-top:6px;
+  display:flex; align-items:center; justify-content:center; font-family:var(--font-serif); font-size:16px; color:var(--tinta); flex-shrink:0;
+  background:var(--papel);
+}
+.book-info{ flex:1; min-width:0; margin-top:6px; }
+.book-info .title{ font-family:var(--font-serif); font-size:14.5px; font-weight:600; color:var(--tinta); }
+.book-info .author{ font-size:11px; color:var(--tinta-suave); margin-top:1px; margin-bottom:8px; }
+.rule-progress{ height:1.5px; background:var(--linha); position:relative; }
+.rule-progress .fill{ position:absolute; left:0; top:0; height:100%; background:var(--grifo); }
+.rule-progress .fill::after{ content:''; position:absolute; right:-3px; top:-3px; width:8px; height:8px; border-radius:50%; background:var(--grifo); }
+.stamp{
+  font-family:var(--font-mono); font-size:9.5px; color:var(--grifo);
+  border:1.3px dashed var(--grifo); border-radius:50%;
+  width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+  transform:rotate(-8deg); flex-shrink:0; text-align:center; line-height:1.1;
+}
+.menu-dots{ font-family:var(--font-mono); font-size:12px; color:var(--tinta-fraca); align-self:flex-start; margin-top:6px; }
+
+/* ===== READER ===== */
+.reader-body{ display:flex; flex-direction:column; height:560px; }
+.reader-top{ display:flex; align-items:center; gap:12px; padding:16px 24px; border-bottom:1px solid var(--linha); }
+.back{ font-size:16px; color:var(--tinta); }
+.reader-title .t1{ font-family:var(--font-serif); font-weight:600; font-size:15px; color:var(--tinta); }
+.reader-title .t2{ font-size:10.5px; color:var(--tinta-suave); }
+
+.chapter-select{
+  margin:14px 24px 0; display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--linha); padding-bottom:10px;
+}
+.chapter-select .name{ font-family:var(--font-serif); font-size:15px; color:var(--tinta); display:flex; align-items:center; gap:6px; }
+.chapter-select .count{ font-family:var(--font-mono); font-size:10px; color:var(--tinta-fraca); }
+
+.reader-text{
+  flex:1; overflow:hidden; padding:18px 24px;
+  font-family:var(--font-serif); font-size:14.5px; line-height:1.85; color:var(--tinta);
+}
+.reader-text .plate{
+  width:100%; height:150px; border:1px solid var(--linha); border-radius:4px;
+  margin:2px 0 16px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:9px; color:var(--tinta-fraca); background:var(--papel-cartao);
+}
+.reader-text p{ margin-bottom:12px; }
+.grifo-mark{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='8' viewBox='0 0 24 8'%3E%3Cpath d='M0 5 Q3 1 6 5 T12 5 T18 5 T24 5' stroke='%23A8402C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:repeat-x; background-position:bottom 1px left 0; background-size:20px 7px;
+  padding-bottom:5px;
+}
+.bracket{ font-family:var(--font-mono); color:var(--sinal-fraco); font-weight:700; }
+
+.control-strip{
+  border-top:1px solid var(--linha); background:var(--papel-cartao);
+  padding:12px 24px 16px;
+}
+.control-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.status-line{ display:flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:10px; color:var(--musgo); }
+.status-line .dot{ width:5px; height:5px; border-radius:50%; background:var(--musgo); }
+.reel{
+  display:flex; gap:1px; font-family:var(--font-mono); font-size:11px; font-weight:700;
+  background:var(--tinta); color:var(--papel); border-radius:3px; overflow:hidden;
+}
+.reel span{ padding:3px 5px; }
+.reel span.sep{ background:var(--papel-cartao-2); color:var(--tinta-fraca); font-weight:400; }
+
+.scrub-row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.scrub-row .tstamp{ font-family:var(--font-mono); font-size:10px; color:var(--tinta-suave); }
+.ruler{ flex:1; position:relative; height:14px; }
+.ruler .base{ position:absolute; top:6px; left:0; right:0; height:1.5px; background:var(--linha); }
+.ruler .ticks{ position:absolute; top:2px; left:0; right:0; display:flex; justify-content:space-between; }
+.ruler .ticks i{ width:1px; height:5px; background:var(--linha); display:block; }
+.ruler .played{ position:absolute; top:6px; left:0; height:1.5px; background:var(--grifo); width:38%; }
+.ruler .pencil{ position:absolute; top:-1px; left:38%; width:2px; height:16px; background:var(--grifo); }
+.ruler .pencil::after{ content:''; position:absolute; top:-3px; left:-2.5px; width:7px; height:7px; border-radius:50%; background:var(--grifo); }
+
+.controls-row{ display:flex; align-items:center; justify-content:space-between; }
+.speed-chip{
+  font-family:var(--font-mono); font-size:10.5px; color:var(--tinta-suave);
+  border:1px solid var(--linha); border-radius:4px; padding:5px 9px; display:flex; gap:5px; align-items:center;
+}
+.transport{ display:flex; align-items:center; gap:14px; }
+.stop-btn{ width:16px; height:16px; border:1.4px solid var(--tinta-suave); }
+.play-btn{
+  width:38px; height:38px; border-radius:50%; background:var(--sinal);
+  display:flex; align-items:center; justify-content:center;
+}
+.play-btn .tri{ width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:11px solid var(--papel); margin-left:2px; }
+.mos-btn{
+  font-family:var(--font-mono); font-size:10px; color:var(--grifo);
+  border:1.3px solid var(--grifo); border-radius:20px; padding:5px 11px;
+}
+
+.tokens{
+  max-width:1400px; margin:52px auto 0; background:var(--papel-cartao); border-radius:12px;
+  padding:26px 30px; font-family:var(--font-sans);
+}
+.tokens h3{ font-family:var(--font-serif); font-size:15px; font-weight:600; color:var(--tinta); margin-bottom:14px; }
+.token-grid{ display:flex; flex-wrap:wrap; gap:18px; }
+.token{ display:flex; align-items:center; gap:8px; }
+.swatch{ width:20px; height:20px; border-radius:5px; flex-shrink:0; border:1px solid rgba(0,0,0,0.15); }
+.token .name{ font-family:var(--font-mono); font-size:10.5px; color:var(--tinta); }
+.token .hex{ font-family:var(--font-mono); font-size:9.5px; color:var(--tinta-suave); display:block; }
+</style>
+</head>
+<body>
+
+<div class="canvas">
+
+  <div class="frame-group">
+    <div class="frame-label">Home — biblioteca</div>
+    <div class="window">
+      <div class="winbar"><div class="dots"><i></i><i></i><i></i></div><div class="name">vozlume</div><div style="width:34px"></div></div>
+      <div class="home-body">
+        <div class="sidebar">
+          <div class="navitem on"><div class="glyph"></div><span>estante</span></div>
+          <div class="navitem"><div class="glyph"></div><span>buscar</span></div>
+          <div class="navitem"><div class="glyph"></div><span>ajustes</span></div>
+        </div>
+        <div class="main">
+          <div class="brand-row">
+            <div><div class="brand">VozLume</div><div class="tagline">Leitor neural de EPUB</div></div>
+            <div class="status-chips">
+              <div class="chip off"><span class="dot"></span>offline</div>
+              <div class="chip sig">auto-failover</div>
+            </div>
+          </div>
+
+          <div class="import-card">
+            <div class="import-icon">+</div>
+            <div class="import-text"><div class="t1">Importar EPUB</div><div class="t2">O arquivo permanece somente neste dispositivo.</div></div>
+            <div class="import-arrow">›</div>
+          </div>
+          <div class="empty-note">nenhum epub carregado</div>
+
+          <div class="section-label">Continuar lendo</div>
+          <div class="card-list">
+            <div class="book-card">
+              <div class="catalog-no">N° 014</div>
+              <div class="cover-mark">C</div>
+              <div class="book-info">
+                <div class="title">O caminho dos reis</div>
+                <div class="author">Brandon Sanderson</div>
+                <div class="rule-progress"><div class="fill" style="width:14%"></div></div>
+              </div>
+              <div class="stamp">14%</div>
+              <div class="menu-dots">⋮</div>
+            </div>
+            <div class="book-card">
+              <div class="catalog-no">N° 015</div>
+              <div class="cover-mark">A</div>
+              <div class="book-info">
+                <div class="title">A marca de Atena</div>
+                <div class="author">Rick Riordan</div>
+                <div class="rule-progress"><div class="fill" style="width:8%"></div></div>
+              </div>
+              <div class="stamp">8%</div>
+              <div class="menu-dots">⋮</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-group">
+    <div class="frame-label">Reader — leitura ativa</div>
+    <div class="window">
+      <div class="winbar"><div class="dots"><i></i><i></i><i></i></div><div class="name">tcc_tts_neural</div><div style="width:34px"></div></div>
+      <div class="reader-body">
+        <div class="reader-top">
+          <span class="back">&larr;</span>
+          <div class="reader-title"><div class="t1">O caminho dos reis</div><div class="t2">O caminho dos reis</div></div>
+        </div>
+
+        <div class="chapter-select">
+          <div class="name">O caminho dos reis <span style="font-size:11px; color:var(--tinta-fraca)">⌄</span></div>
+          <div class="count">2448 palavras</div>
+        </div>
+
+        <div class="reader-text">
+          <div class="plate">ilustração do capítulo</div>
+          <p>NOVE ANOS ANTES</p>
+          <p>Kaladin irrompeu na sala de cirurgia, a porta aberta deixando entrar a forte luz branca do sol.</p>
+          <p>— Desculpe, pai — disse ele.</p>
+          <p>Lirin, seu pai, apertou cuidadosamente a correia no braço da jovem que estava amarrada à estreita mesa de operação.
+          <span class="grifo-mark">Ela estava de olhos fechados; Kal não havia assistido à administração da droga.</span>
+          <span class="bracket">[</span>— Conversaremos sobre isso mais tarde — disse Lirin, prendendo a outra mão da mulher.<span class="bracket">]</span></p>
+        </div>
+
+        <div class="control-strip">
+          <div class="control-top">
+            <div class="status-line"><span class="dot"></span>epub importado com sucesso</div>
+            <div class="reel"><span>0</span><span>0</span><span>6</span><span class="sep">/</span><span>2</span><span>1</span><span>8</span></div>
+          </div>
+          <div class="scrub-row">
+            <span class="tstamp">00:00</span>
+            <div class="ruler">
+              <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="base"></div>
+              <div class="played"></div>
+              <div class="pencil"></div>
+            </div>
+            <span class="tstamp">00:00</span>
+          </div>
+          <div class="controls-row">
+            <div class="speed-chip">1.0× <span style="font-size:9px">⌄</span></div>
+            <div class="transport">
+              <div class="stop-btn"></div>
+              <div class="play-btn"><div class="tri"></div></div>
+            </div>
+            <div class="mos-btn">★ mos</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-group">
+    <div class="frame-label">Home — noturno</div>
+    <div class="window dark">
+      <div class="winbar"><div class="dots"><i></i><i></i><i></i></div><div class="name">vozlume</div><div style="width:34px"></div></div>
+      <div class="home-body">
+        <div class="sidebar">
+          <div class="navitem on"><div class="glyph"></div><span>estante</span></div>
+          <div class="navitem"><div class="glyph"></div><span>buscar</span></div>
+          <div class="navitem"><div class="glyph"></div><span>ajustes</span></div>
+        </div>
+        <div class="main">
+          <div class="brand-row">
+            <div><div class="brand">VozLume</div><div class="tagline">Leitor neural de EPUB</div></div>
+            <div class="status-chips">
+              <div class="chip off"><span class="dot"></span>offline</div>
+              <div class="chip sig">auto-failover</div>
+            </div>
+          </div>
+
+          <div class="import-card">
+            <div class="import-icon">+</div>
+            <div class="import-text"><div class="t1">Importar EPUB</div><div class="t2">O arquivo permanece somente neste dispositivo.</div></div>
+            <div class="import-arrow">›</div>
+          </div>
+          <div class="empty-note">nenhum epub carregado</div>
+
+          <div class="section-label">Continuar lendo</div>
+          <div class="card-list">
+            <div class="book-card">
+              <div class="catalog-no">N° 014</div>
+              <div class="cover-mark">C</div>
+              <div class="book-info">
+                <div class="title">O caminho dos reis</div>
+                <div class="author">Brandon Sanderson</div>
+                <div class="rule-progress"><div class="fill" style="width:14%"></div></div>
+              </div>
+              <div class="stamp">14%</div>
+              <div class="menu-dots">⋮</div>
+            </div>
+            <div class="book-card">
+              <div class="catalog-no">N° 015</div>
+              <div class="cover-mark">A</div>
+              <div class="book-info">
+                <div class="title">A marca de Atena</div>
+                <div class="author">Rick Riordan</div>
+                <div class="rule-progress"><div class="fill" style="width:8%"></div></div>
+              </div>
+              <div class="stamp">8%</div>
+              <div class="menu-dots">⋮</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-group">
+    <div class="frame-label">Reader — noturno</div>
+    <div class="window dark">
+      <div class="winbar"><div class="dots"><i></i><i></i><i></i></div><div class="name">tcc_tts_neural</div><div style="width:34px"></div></div>
+      <div class="reader-body">
+        <div class="reader-top">
+          <span class="back">&larr;</span>
+          <div class="reader-title"><div class="t1">O caminho dos reis</div><div class="t2">O caminho dos reis</div></div>
+        </div>
+
+        <div class="chapter-select">
+          <div class="name">O caminho dos reis <span style="font-size:11px; color:var(--tinta-fraca)">⌄</span></div>
+          <div class="count">2448 palavras</div>
+        </div>
+
+        <div class="reader-text">
+          <div class="plate">ilustração do capítulo</div>
+          <p>NOVE ANOS ANTES</p>
+          <p>Kaladin irrompeu na sala de cirurgia, a porta aberta deixando entrar a forte luz branca do sol.</p>
+          <p>— Desculpe, pai — disse ele.</p>
+          <p>Lirin, seu pai, apertou cuidadosamente a correia no braço da jovem que estava amarrada à estreita mesa de operação.
+          <span class="grifo-mark">Ela estava de olhos fechados; Kal não havia assistido à administração da droga.</span>
+          <span class="bracket">[</span>— Conversaremos sobre isso mais tarde — disse Lirin, prendendo a outra mão da mulher.<span class="bracket">]</span></p>
+        </div>
+
+        <div class="control-strip">
+          <div class="control-top">
+            <div class="status-line"><span class="dot"></span>epub importado com sucesso</div>
+            <div class="reel"><span>0</span><span>0</span><span>6</span><span class="sep">/</span><span>2</span><span>1</span><span>8</span></div>
+          </div>
+          <div class="scrub-row">
+            <span class="tstamp">00:00</span>
+            <div class="ruler">
+              <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="base"></div>
+              <div class="played"></div>
+              <div class="pencil"></div>
+            </div>
+            <span class="tstamp">00:00</span>
+          </div>
+          <div class="controls-row">
+            <div class="speed-chip">1.0× <span style="font-size:9px">⌄</span></div>
+            <div class="transport">
+              <div class="stop-btn"></div>
+              <div class="play-btn"><div class="tri"></div></div>
+            </div>
+            <div class="mos-btn">★ mos</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="tokens">
+  <h3>Tokens de design</h3>
+  <div class="token-grid">
+    <div class="token"><div class="swatch" style="background:#E7DFC6"></div><div><span class="name">papel</span><span class="hex">#E7DFC6</span></div></div>
+    <div class="token"><div class="swatch" style="background:#242229"></div><div><span class="name">tinta</span><span class="hex">#242229</span></div></div>
+    <div class="token"><div class="swatch" style="background:#2E5578"></div><div><span class="name">sinal (ação)</span><span class="hex">#2E5578</span></div></div>
+    <div class="token"><div class="swatch" style="background:#A8402C"></div><div><span class="name">grifo (frase ativa)</span><span class="hex">#A8402C</span></div></div>
+    <div class="token"><div class="swatch" style="background:#4B5D3A"></div><div><span class="name">musgo (offline/ok)</span><span class="hex">#4B5D3A</span></div></div>
+    <div class="token"><div class="swatch" style="background:#DED2AE"></div><div><span class="name">papel-cartão</span><span class="hex">#DED2AE</span></div></div>
+  </div>
+  <div class="token-grid" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--linha)">
+    <div class="token"><div class="swatch" style="background:#262A22"></div><div><span class="name">ardósia (bg noturno)</span><span class="hex">#262A22</span></div></div>
+    <div class="token"><div class="swatch" style="background:#E9E2C9"></div><div><span class="name">giz (texto noturno)</span><span class="hex">#E9E2C9</span></div></div>
+    <div class="token"><div class="swatch" style="background:#6E9BC1"></div><div><span class="name">sinal noturno</span><span class="hex">#6E9BC1</span></div></div>
+    <div class="token"><div class="swatch" style="background:#C25A42"></div><div><span class="name">grifo noturno</span><span class="hex">#C25A42</span></div></div>
+    <div class="token"><div class="swatch" style="background:#93AC72"></div><div><span class="name">musgo noturno</span><span class="hex">#93AC72</span></div></div>
+  </div>
+</div>
+
+</body>
+</html>

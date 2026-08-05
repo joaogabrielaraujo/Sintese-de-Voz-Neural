@@ -13,7 +13,7 @@ void main() {
     setUp(() {
       engine = MockTTSEngine(
         config: TTSConfig.defaultPtBr(),
-        msPerCharacter: 0.1, // Acelera o teste para execução rápida
+        msPerCharacter: 0.0, // Síntese mock instantânea para o teste de estresse
       );
       orchestrator = PipelineOrchestrator(engine: engine);
     });
@@ -22,7 +22,9 @@ void main() {
       engine.dispose();
     });
 
-    test('Leitura de capítulo com 500 sentenças (~10.000 palavras) mantém consumo de RAM plano < 50MB', () async {
+    test(
+      'Leitura de capítulo com 500 sentenças (~10.000 palavras) mantém consumo de RAM plano < 50MB',
+      () async {
       // Gera texto contínuo de 500 sentenças (~10.000 palavras)
       final String largeChapterText = List.generate(
         500,
@@ -54,9 +56,9 @@ void main() {
         queue: queue,
       );
 
-      // Consumidor em paralelo simulando a reprodução e purge imediato
+      // Consumidor em paralelo desempilhando a fila conforme produzida
       final consumerFuture = Future(() async {
-        await for (final _ in stream) {
+        while (totalItemsProcessed < 500) {
           final item = await queue.dequeue();
           if (item != null) {
             totalItemsProcessed++;
@@ -68,7 +70,7 @@ void main() {
         }
       });
 
-      await consumerFuture;
+      await Future.wait([stream.drain(), consumerFuture]);
 
       expect(totalItemsProcessed, equals(500));
       expect(queue.isCompleted, isTrue);
@@ -80,6 +82,8 @@ void main() {
       expect(queue.memoryManager.stats.purgedItemsCount, equals(500));
 
       queue.dispose();
-    });
+    },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 }

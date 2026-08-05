@@ -38,6 +38,8 @@ class AudioPlayerControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ext = theme.extension<AppThemeExtension>();
     final isPlaying = currentState == TTSAudioState.playing;
     final maxMs = totalDuration.inMilliseconds > 0
         ? totalDuration.inMilliseconds.toDouble()
@@ -46,121 +48,138 @@ class AudioPlayerControlBar extends StatelessWidget {
         .clamp(0, totalDuration.inMilliseconds)
         .toDouble();
 
-    return Container(
-      key: const Key('audio-player-control-bar'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.ink,
-        border: Border(top: BorderSide(color: AppColors.line)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Text(_formatDuration(currentPosition),
-                  style: AppTextStyles.metric),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.amber,
-                    inactiveTrackColor: AppColors.line,
-                    thumbColor: AppColors.amber,
-                    trackHeight: 4,
+    return SafeArea(
+      top: false,
+      child: Container(
+        key: const Key('audio-player-control-bar'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: ext?.card ?? theme.colorScheme.surface,
+          border: Border(top: BorderSide(color: theme.colorScheme.outline)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(
+                  _formatDuration(currentPosition),
+                  style: AppTextStyles.statusMono.copyWith(
+                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
                   ),
-                  child: Slider(
-                    value: currentMs,
-                    min: 0,
-                    max: maxMs,
-                    onChanged: (value) => onSeekChanged(
-                      Duration(milliseconds: value.toInt()),
+                ),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: theme.colorScheme.primary,
+                      inactiveTrackColor: theme.colorScheme.outline,
+                      thumbColor: theme.colorScheme.primary,
+                      trackHeight: 2,
+                    ),
+                    child: Slider(
+                      value: currentMs,
+                      min: 0,
+                      max: maxMs,
+                      onChanged: (value) => onSeekChanged(
+                        Duration(milliseconds: value.toInt()),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Text(_formatDuration(totalDuration), style: AppTextStyles.metric),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 430;
-              final speedSelector = DropdownButton<double>(
-                key: const Key('playback-speed-selector'),
-                value: currentSpeed,
-                dropdownColor: AppColors.ink2,
-                underline: const SizedBox(),
-                style: AppTextStyles.metric.copyWith(color: AppColors.paperDim),
-                items: const [
-                  DropdownMenuItem(value: .75, child: Text('0.75x')),
-                  DropdownMenuItem(value: 1, child: Text('1.0x')),
-                  DropdownMenuItem(value: 1.25, child: Text('1.25x')),
-                  DropdownMenuItem(value: 1.5, child: Text('1.5x')),
-                  DropdownMenuItem(value: 2, child: Text('2.0x')),
-                ],
-                onChanged: (value) {
-                  if (value != null) onSpeedChanged(value);
-                },
-              );
-              final playbackControls = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.stop, color: AppColors.paperDim),
-                    onPressed: onStopPressed,
-                    tooltip: 'Parar áudio',
+                Text(
+                  _formatDuration(totalDuration),
+                  style: AppTextStyles.statusMono.copyWith(
+                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  FloatingActionButton.small(
-                    heroTag: null,
-                    backgroundColor: AppColors.amber,
-                    onPressed: onPlayPausePressed,
-                    tooltip: isPlaying ? 'Pausar áudio' : 'Reproduzir áudio',
-                    child: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: AppColors.ink,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                final speedSelector = DropdownButton<double>(
+                  key: const Key('playback-speed-selector'),
+                  value: currentSpeed,
+                  dropdownColor: ext?.card ?? theme.colorScheme.surface,
+                  underline: const SizedBox(),
+                  style: AppTextStyles.statusMono.copyWith(
+                    color: ext?.textSoft ?? theme.colorScheme.onSurface,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: .75, child: Text('0.75x')),
+                    DropdownMenuItem(value: 1, child: Text('1.0x')),
+                    DropdownMenuItem(value: 1.25, child: Text('1.25x')),
+                    DropdownMenuItem(value: 1.5, child: Text('1.5x')),
+                    DropdownMenuItem(value: 2, child: Text('2.0x')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onSpeedChanged(value);
+                  },
+                );
+                final playbackControls = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.stop, color: ext?.textSoft ?? theme.colorScheme.onSurface),
+                      onPressed: onStopPressed,
+                      tooltip: 'Parar áudio',
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    FloatingActionButton.small(
+                      heroTag: null,
+                      backgroundColor: theme.colorScheme.primary,
+                      onPressed: onPlayPausePressed,
+                      tooltip: isPlaying ? 'Pausar áudio' : 'Reproduzir áudio',
+                      child: Icon(
+                        isPlaying ? Icons.pause : Icons.play_arrow,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ],
+                );
+                final mosButton = ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ext?.cardElevated ?? theme.colorScheme.surfaceContainerHighest,
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
                     ),
                   ),
-                ],
-              );
-              final mosButton = ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.ink2,
-                  minimumSize: const Size(44, 44),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+                  icon: Icon(Icons.star, color: ext?.grifo ?? theme.colorScheme.primary, size: 18),
+                  label: Text(
+                    compact ? 'MOS' : 'Avaliar MOS',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.star, color: AppColors.amber, size: 18),
-                label: Text(
-                  compact ? 'MOS' : 'Avaliar MOS',
-                  style: const TextStyle(color: AppColors.paper, fontSize: 12),
-                ),
-                onPressed: onOpenMOSDialog,
-              );
+                  onPressed: onOpenMOSDialog,
+                );
 
-              if (compact) {
-                return Wrap(
-                  key: const Key('compact-player-controls'),
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
+                if (compact) {
+                  return Wrap(
+                    key: const Key('compact-player-controls'),
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [speedSelector, playbackControls, mosButton],
+                  );
+                }
+                return Row(
+                  key: const Key('wide-player-controls'),
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [speedSelector, playbackControls, mosButton],
                 );
-              }
-              return Row(
-                key: const Key('wide-player-controls'),
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [speedSelector, playbackControls, mosButton],
-              );
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

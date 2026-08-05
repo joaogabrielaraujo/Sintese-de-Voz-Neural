@@ -1,15 +1,15 @@
 ---
 phase: 14
 slug: ui-redesign
-status: draft
+status: approved
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-08-03
 ---
 
-# Phase 14 — Validation Strategy
+# Phase 14 â€” Validation Strategy
 
-> Contrato de validação incremental para implementar o redesign editorial nativo sem regressões no pipeline offline.
+> Contrato de validaÃ§Ã£o incremental para implementar o redesign editorial nativo sem regressÃµes no pipeline offline.
 
 ---
 
@@ -18,7 +18,7 @@ created: 2026-08-03
 | Property | Value |
 |----------|-------|
 | **Framework** | `flutter_test` do Flutter SDK 3.44.8 |
-| **Config file** | `analysis_options.yaml`; sem configuração golden dedicada |
+| **Config file** | `analysis_options.yaml`; sem configuraÃ§Ã£o golden dedicada |
 | **Quick run command** | `flutter test --no-pub test/ui/theme_contract_test.dart test/ui/redesign_widgets_test.dart` |
 | **Full suite command** | `flutter test --no-pub` |
 | **Estimated runtime** | Medir na Wave 0; manter feedback por tarefa abaixo de 120 segundos |
@@ -28,9 +28,9 @@ created: 2026-08-03
 ## Sampling Rate
 
 - **After every task commit:** teste focal do arquivo/comportamento tocado e `dart analyze` dos arquivos modificados
-- **After every plan wave:** suíte de UI completa nos temas claro e escuro
-- **Before `$gsd-verify-work`:** `flutter test --no-pub`, análise sem erros, goldens aprovados, guidelines de acessibilidade e UAT Android/Windows
-- **Max feedback latency:** 120 segundos para a amostra focal; suítes longas devem ser registradas como janela de verificação
+- **After every plan wave:** suÃ­te de UI completa nos temas claro e escuro
+- **Before `$gsd-verify-work`:** `flutter test --no-pub`, anÃ¡lise sem erros, goldens aprovados, guidelines de acessibilidade e UAT Android/Windows
+- **Max feedback latency:** 120 segundos para a amostra focal; suÃ­tes longas devem ser registradas como janela de verificaÃ§Ã£o
 
 ---
 
@@ -38,27 +38,27 @@ created: 2026-08-03
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 14-W0-01 | W0 | 0 | Fontes e temas locais | — | Assets locais; nenhuma dependência de rede | unit/widget | `flutter test --no-pub test/ui/theme_contract_test.dart` | ❌ W0 | ⬜ pending |
-| 14-W0-02 | W0 | 0 | Fixtures e viewports | — | Estado isolado e determinístico | widget | `flutter test --no-pub test/ui/redesign_widgets_test.dart` | ⚠️ parcial | ⬜ pending |
-| 14-NAV | TBD | TBD | Navegação responsiva | — | Foco e ações consistentes | widget | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name navigation` | ⚠️ parcial | ⬜ pending |
-| 14-LIB | TBD | TBD | Biblioteca/importação | — | Erros preservam biblioteca e progresso | widget/golden | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name biblioteca` | ⚠️ parcial | ⬜ pending |
-| 14-READ | TBD | TBD | Leitor editorial | — | Erros preservam livro e posição | widget/golden | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name leitor` | ⚠️ parcial | ⬜ pending |
-| 14-PLAY | TBD | TBD | Player e métricas | — | Falhas são recuperáveis e não inventam métricas | widget/integration | `flutter test --no-pub test/ui/audio_player_widget_test.dart test/ui/telemetry_flow_test.dart` | ⚠️ parcial | ⬜ pending |
-| 14-A11Y | TBD | TBD | Atalhos, foco e acessibilidade | — | Controles rotulados e alcançáveis | guideline/widget | `flutter test --no-pub test/ui/accessibility_test.dart` | ❌ W0 | ⬜ pending |
-| 14-GOLD | TBD | TBD | Fidelidade visual | — | N/A | golden | `flutter test --no-pub test/ui/golden_test.dart` | ❌ W0 | ⬜ pending |
+| 14-04-T1 | 14-04 | 1 | Fontes e temas locais | â€” | Assets locais; nenhuma dependÃªncia de rede | unit/widget | `flutter test --no-pub test/ui/theme_contract_test.dart` | âŒ W0 | â¬œ pending |
+| 14-04-T2 | 14-04 | 1 | Preferência e harness de tema | â€” | Estado isolado e determinÃ­stico | widget | `flutter test --no-pub test/ui/redesign_widgets_test.dart` | âš ï¸ parcial | â¬œ pending |
+| 14-NAV | TBD | TBD | NavegaÃ§Ã£o responsiva | â€” | Foco e aÃ§Ãµes consistentes | widget | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name navigation` | âš ï¸ parcial | â¬œ pending |
+| 14-LIB | TBD | TBD | Biblioteca/importaÃ§Ã£o | â€” | Erros preservam biblioteca e progresso | widget/golden | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name biblioteca` | âš ï¸ parcial | â¬œ pending |
+| 14-READ | 14-07 | 4 | Leitor editorial | â€” | Erros preservam livro e posiÃ§Ã£o | widget/golden | `flutter test --no-pub test/ui/redesign_widgets_test.dart --plain-name leitor` | âš ï¸ parcial | â¬œ pending |
+| 14-PLAY | TBD | TBD | Player e mÃ©tricas | â€” | Falhas sÃ£o recuperÃ¡veis e nÃ£o inventam mÃ©tricas | widget/integration | `flutter test --no-pub test/ui/audio_player_widget_test.dart test/ui/telemetry_flow_test.dart` | âš ï¸ parcial | â¬œ pending |
+| 14-A11Y | 14-08 | 5 | Atalhos, foco e acessibilidade | â€” | Controles rotulados e alcanÃ§Ã¡veis | guideline/widget | `flutter test --no-pub test/ui/accessibility_test.dart` | âŒ W0 | â¬œ pending |
+| 14-GOLD | 14-09 | 6 | Fidelidade visual | â€” | N/A | golden | `flutter test --no-pub test/ui/golden_test.dart` | âŒ W0 | â¬œ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky/parcial*
+*Status: â¬œ pending Â· âœ… green Â· âŒ red Â· âš ï¸ flaky/parcial*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] Adquirir e versionar Spectral, Archivo e Space Mono, incluindo licenças e pesos 400/600.
-- [ ] Criar `test/ui/theme_contract_test.dart` para tokens, famílias, tamanhos, pesos e preferência claro/escuro/sistema.
+- [ ] Adquirir e versionar Spectral, Archivo e Space Mono, incluindo licenÃ§as e pesos 400/600.
+- [ ] Criar `test/ui/theme_contract_test.dart` para tokens, famÃ­lias, tamanhos, pesos e preferÃªncia claro/escuro/sistema.
 - [ ] Criar factories de fixtures para biblioteca, leitor e player.
 - [ ] Criar helper de viewport, janela baixa e `TextScaler.linear(2.0)` com reset seguro.
-- [ ] Criar `test/ui/accessibility_test.dart` com tap targets, rótulos e contraste.
-- [ ] Criar `test/ui/golden_test.dart` e baselines canônicos somente após fontes e tokens estabilizarem.
+- [ ] Criar `test/ui/accessibility_test.dart` com tap targets, rÃ³tulos e contraste.
+- [ ] Criar `test/ui/golden_test.dart` e baselines canÃ´nicos somente apÃ³s fontes e tokens estabilizarem.
 
 ---
 
@@ -66,9 +66,9 @@ created: 2026-08-03
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Fidelidade editorial final | Paridade visual com `vozlume_redesign.html` | Comparação de hierarquia e densidade exige julgamento humano | Comparar Biblioteca e Leitor lado a lado em claro/escuro nos viewports 390×844, 800×1280 e 1440×900. |
-| Android físico | Safe areas, toque, rotação e TTS offline | Depende do dispositivo G85 e engine nativa | Executar importação, leitura, play/pause, retomada, tema e rotação no G85. |
-| Windows nativo | Redimensionamento, mouse e teclado | Depende do runner Windows real | Validar 320px, 899/900px, 1440×900, `Ctrl+O`, Space, Escape, setas e foco. |
+| Fidelidade editorial final | Paridade visual com `vozlume_redesign.html` | ComparaÃ§Ã£o de hierarquia e densidade exige julgamento humano | Comparar Biblioteca e Leitor lado a lado em claro/escuro nos viewports 390Ã—844, 800Ã—1280 e 1440Ã—900. |
+| Android fÃ­sico | Safe areas, toque, rotaÃ§Ã£o e TTS offline | Depende do dispositivo G85 e engine nativa | Executar importaÃ§Ã£o, leitura, play/pause, retomada, tema e rotaÃ§Ã£o no G85. |
+| Windows nativo | Redimensionamento, mouse e teclado | Depende do runner Windows real | Validar 320px, 899/900px, 1440Ã—900, `Ctrl+O`, Space, Escape, setas e foco. |
 
 ---
 

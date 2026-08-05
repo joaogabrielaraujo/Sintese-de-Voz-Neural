@@ -20,15 +20,15 @@ extension TTSEngineTypeExtension on TTSEngineType {
   String get label {
     switch (this) {
       case TTSEngineType.autoFailover:
-        return '🤖 Auto-Failover (Inteligente)';
+        return 'Auto-Failover (Inteligente)';
       case TTSEngineType.sherpaOnnx:
-        return '⚡ Sherpa-ONNX C++ (HiFi-GAN Faber)';
+        return 'Sherpa-ONNX C++ (HiFi-GAN Faber)';
       case TTSEngineType.sherpaOnnxCli:
-        return '🛡️ Sherpa-ONNX CLI (Processo Isolado Windows)';
+        return 'Sherpa-ONNX CLI (Processo Isolado Windows)';
       case TTSEngineType.vitsLocal:
-        return '🛡️ VITS Local (100% Seguro em Memória)';
+        return 'VITS Local (100% Seguro em Memória)';
       case TTSEngineType.flutterTts:
-        return '🗣️ Voz Nativa (Windows SAPI5 / Sistema)';
+        return 'Voz Nativa (Windows SAPI5 / Sistema)';
     }
   }
 

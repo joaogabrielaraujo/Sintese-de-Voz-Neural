@@ -1,34 +1,50 @@
 import 'package:flutter/material.dart';
 
-/// Design system editorial inspirado em design_mockup.html.
+/// Tokens e estension do design system editorial (vozlume_redesign / 14-UI-SPEC.md)
 class AppColors {
-  static const ink = Color(0xFF12151C);
-  static const ink2 = Color(0xFF1B1F29);
-  static const ink3 = Color(0xFF242938);
-  static const paper = Color(0xFFEDE7D6);
-  static const paperDim = Color(0xFF9CA0AC);
-  static const paperFaint = Color(0xFF5C6072);
-  static const amber = Color(0xFFE3A452);
-  static const amberDim = Color(0xFF4A3B27);
-  static const teal = Color(0xFF4FA9A6);
-  static const tealDim = Color(0xFF20393B);
-  static const coral = Color(0xFFE2694F);
-  static const line = Color(0xFF2B303F);
+  // Light palette
+  static const lightPaper = Color(0xFFE7DFC6);
+  static const lightCard = Color(0xFFDED2AE);
+  static const lightCardElevated = Color(0xFFD6C99E);
+  static const lightSignal = Color(0xFF2E5578);
+  static const lightSignalVar = Color(0xFF3F6788);
+  static const lightGrifo = Color(0xFFA8402C);
+  static const lightMoss = Color(0xFF4B5D3A);
+  static const lightText = Color(0xFF242229);
+  static const lightTextSoft = Color(0xFF6B6355);
+  static const lightTextWeak = Color(0xFF948C78);
+  static const lightLine = Color(0x29242229);
+  static const lightDestructive = Color(0xFF8C2F2F);
+
+  // Dark palette
+  static const darkSlate = Color(0xFF262A22);
+  static const darkCard = Color(0xFF2E332A);
+  static const darkCardElevated = Color(0xFF363C31);
+  static const darkSignal = Color(0xFF6E9BC1);
+  static const darkSignalVar = Color(0xFF82ABD1);
+  static const darkGrifo = Color(0xFFC25A42);
+  static const darkMoss = Color(0xFF4B5D3A);
+  static const darkText = Color(0xFFE7DFC6);
+  static const darkTextSoft = Color(0xFFC2B9A0);
+  static const darkTextWeak = Color(0xFF8C8778);
+  static const darkLine = Color(0x29E7DFC6);
+  static const darkDestructive = Color(0xFFD9534F);
 }
 
 class AppSpacing {
   static const xs = 4.0;
   static const sm = 8.0;
-  static const md = 12.0;
-  static const lg = 16.0;
-  static const xl = 24.0;
-  static const xxl = 32.0;
+  static const md = 16.0;
+  static const lg = 24.0;
+  static const xl = 32.0;
+  static const xxl = 48.0;
+  static const xxxl = 64.0;
 }
 
 class AppRadii {
-  static const sm = 7.0;
-  static const md = 14.0;
-  static const lg = 20.0;
+  static const sm = 4.0;
+  static const md = 8.0;
+  static const lg = 12.0;
 }
 
 class AppBreakpoints {
@@ -36,98 +52,220 @@ class AppBreakpoints {
   static const wide = 900.0;
 }
 
+/// Extensão customizada de tema para expor os papéis editoriais aprovados
+class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
+  final Color grifo;
+  final Color moss;
+  final Color card;
+  final Color cardElevated;
+  final Color textSoft;
+  final Color textWeak;
+
+  const AppThemeExtension({
+    required this.grifo,
+    required this.moss,
+    required this.card,
+    required this.cardElevated,
+    required this.textSoft,
+    required this.textWeak,
+  });
+
+  @override
+  AppThemeExtension copyWith({
+    Color? grifo,
+    Color? moss,
+    Color? card,
+    Color? cardElevated,
+    Color? textSoft,
+    Color? textWeak,
+  }) {
+    return AppThemeExtension(
+      grifo: grifo ?? this.grifo,
+      moss: moss ?? this.moss,
+      card: card ?? this.card,
+      cardElevated: cardElevated ?? this.cardElevated,
+      textSoft: textSoft ?? this.textSoft,
+      textWeak: textWeak ?? this.textWeak,
+    );
+  }
+
+  @override
+  AppThemeExtension lerp(ThemeExtension<AppThemeExtension>? other, double t) {
+    if (other is! AppThemeExtension) return this;
+    return AppThemeExtension(
+      grifo: Color.lerp(grifo, other.grifo, t)!,
+      moss: Color.lerp(moss, other.moss, t)!,
+      card: Color.lerp(card, other.card, t)!,
+      cardElevated: Color.lerp(cardElevated, other.cardElevated, t)!,
+      textSoft: Color.lerp(textSoft, other.textSoft, t)!,
+      textWeak: Color.lerp(textWeak, other.textWeak, t)!,
+    );
+  }
+}
+
 class AppTextStyles {
-  static const reading = TextStyle(
-    color: AppColors.paperDim,
-    fontFamily: 'Literata',
+  static const statusMono = TextStyle(
+    fontFamily: 'Space Mono',
+    fontFamilyFallback: ['Consolas', 'monospace'],
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.4,
+  );
+
+  static const uiBody = TextStyle(
+    fontFamily: 'Archivo',
+    fontFamilyFallback: ['Segoe UI', 'Roboto', 'sans-serif'],
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
+
+  static const epubReading = TextStyle(
+    fontFamily: 'Spectral',
     fontFamilyFallback: ['Georgia', 'serif'],
-    fontSize: 17,
-    height: 1.75,
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.7,
   );
 
   static const sectionTitle = TextStyle(
-    color: AppColors.paper,
-    fontFamily: 'Literata',
+    fontFamily: 'Spectral',
     fontFamilyFallback: ['Georgia', 'serif'],
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: FontWeight.w600,
+    height: 1.2,
   );
 
-  static const metric = TextStyle(
-    color: AppColors.paperFaint,
-    fontFamily: 'JetBrains Mono',
-    fontFamilyFallback: ['Consolas', 'monospace'],
-    fontSize: 11,
+  static const brandDisplay = TextStyle(
+    fontFamily: 'Spectral',
+    fontFamilyFallback: ['Georgia', 'serif'],
+    fontSize: 28,
+    fontWeight: FontWeight.w600,
+    height: 1.2,
   );
 }
 
 class AppTheme {
-  static ThemeData dark() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.amber,
-      brightness: Brightness.dark,
-      surface: AppColors.ink2,
-      error: AppColors.coral,
+  static ThemeData light() {
+    final scheme = ColorScheme.light(
+      surface: AppColors.lightPaper,
+      onSurface: AppColors.lightText,
+      primary: AppColors.lightSignal,
+      onPrimary: Colors.white,
+      secondary: AppColors.lightSignalVar,
+      outline: AppColors.lightLine,
+      error: AppColors.lightDestructive,
     );
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: scheme.copyWith(
-        primary: AppColors.amber,
-        onPrimary: AppColors.ink,
-        secondary: AppColors.teal,
-        onSecondary: AppColors.ink,
-        surface: AppColors.ink2,
-        onSurface: AppColors.paper,
-        outline: AppColors.line,
-        error: AppColors.coral,
-      ),
-      scaffoldBackgroundColor: AppColors.ink,
-      fontFamily: 'Manrope',
+      brightness: Brightness.light,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: AppColors.lightPaper,
+      fontFamily: 'Archivo',
       fontFamilyFallback: const ['Segoe UI', 'Roboto', 'sans-serif'],
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: AppColors.paper, height: 1.5),
-        bodyMedium: TextStyle(color: AppColors.paperDim),
-        titleLarge: TextStyle(
-          color: AppColors.paper,
-          fontFamily: 'Literata',
-          fontFamilyFallback: ['Georgia', 'serif'],
-          fontWeight: FontWeight.w600,
+      extensions: const [
+        AppThemeExtension(
+          grifo: AppColors.lightGrifo,
+          moss: AppColors.lightMoss,
+          card: AppColors.lightCard,
+          cardElevated: AppColors.lightCardElevated,
+          textSoft: AppColors.lightTextSoft,
+          textWeak: AppColors.lightTextWeak,
         ),
+      ],
+      textTheme: const TextTheme(
+        bodyMedium: AppTextStyles.uiBody,
+        titleMedium: AppTextStyles.sectionTitle,
+        titleLarge: AppTextStyles.brandDisplay,
+        labelSmall: AppTextStyles.statusMono,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.ink,
-        foregroundColor: AppColors.paper,
+        backgroundColor: AppColors.lightPaper,
+        foregroundColor: AppColors.lightText,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.line),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: AppColors.ink2,
-        indicatorColor: AppColors.amberDim,
+      dividerTheme: const DividerThemeData(color: AppColors.lightLine),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.lightCard,
+        indicatorColor: AppColors.lightSignal.withAlpha(40),
         labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(color: AppColors.paperDim, fontSize: 11),
+          AppTextStyles.uiBody.copyWith(fontSize: 12),
         ),
       ),
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: AppColors.ink2,
-        indicatorColor: AppColors.amberDim,
-        selectedIconTheme: IconThemeData(color: AppColors.amber),
-        unselectedIconTheme: IconThemeData(color: AppColors.paperFaint),
-        selectedLabelTextStyle: TextStyle(color: AppColors.amber, fontSize: 11),
-        unselectedLabelTextStyle:
-            TextStyle(color: AppColors.paperFaint, fontSize: 11),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: AppColors.lightCard,
+        indicatorColor: AppColors.lightSignal.withAlpha(40),
+        selectedIconTheme: const IconThemeData(color: AppColors.lightSignal),
+        unselectedIconTheme: const IconThemeData(color: AppColors.lightTextSoft),
+        selectedLabelTextStyle: AppTextStyles.uiBody.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.lightSignal),
+        unselectedLabelTextStyle: AppTextStyles.uiBody.copyWith(fontSize: 12, color: AppColors.lightTextSoft),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.ink2,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.line),
+    );
+  }
+
+  static ThemeData dark() {
+    final scheme = ColorScheme.dark(
+      surface: AppColors.darkSlate,
+      onSurface: AppColors.darkText,
+      primary: AppColors.darkSignal,
+      onPrimary: AppColors.darkSlate,
+      secondary: AppColors.darkSignalVar,
+      outline: AppColors.darkLine,
+      error: AppColors.darkDestructive,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: AppColors.darkSlate,
+      fontFamily: 'Archivo',
+      fontFamilyFallback: const ['Segoe UI', 'Roboto', 'sans-serif'],
+      extensions: const [
+        AppThemeExtension(
+          grifo: AppColors.darkGrifo,
+          moss: AppColors.darkMoss,
+          card: AppColors.darkCard,
+          cardElevated: AppColors.darkCardElevated,
+          textSoft: AppColors.darkTextSoft,
+          textWeak: AppColors.darkTextWeak,
         ),
+      ],
+      textTheme: const TextTheme(
+        bodyMedium: AppTextStyles.uiBody,
+        titleMedium: AppTextStyles.sectionTitle,
+        titleLarge: AppTextStyles.brandDisplay,
+        labelSmall: AppTextStyles.statusMono,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.darkSlate,
+        foregroundColor: AppColors.darkText,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dividerTheme: const DividerThemeData(color: AppColors.darkLine),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.darkCard,
+        indicatorColor: AppColors.darkSignal.withAlpha(40),
+        labelTextStyle: WidgetStatePropertyAll(
+          AppTextStyles.uiBody.copyWith(fontSize: 12, color: AppColors.darkText),
+        ),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: AppColors.darkCard,
+        indicatorColor: AppColors.darkSignal.withAlpha(40),
+        selectedIconTheme: const IconThemeData(color: AppColors.darkSignal),
+        unselectedIconTheme: const IconThemeData(color: AppColors.darkTextSoft),
+        selectedLabelTextStyle: AppTextStyles.uiBody.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.darkSignal),
+        unselectedLabelTextStyle: AppTextStyles.uiBody.copyWith(fontSize: 12, color: AppColors.darkTextSoft),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
       ),
     );
   }

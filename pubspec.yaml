@@ -64,3 +64,23 @@ flutter:
     - assets/models/espeak-ng-data/lang/zlw/
     - assets/models/espeak-ng-data/voices/
     - assets/models/espeak-ng-data/voices/!v/
+
+  fonts:
+    - family: Spectral
+      fonts:
+        - asset: assets/fonts/spectral/Spectral-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/spectral/Spectral-SemiBold.ttf
+          weight: 600
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/archivo/Archivo-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/archivo/Archivo-SemiBold.ttf
+          weight: 600
+    - family: Space Mono
+      fonts:
+        - asset: assets/fonts/space_mono/SpaceMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/space_mono/SpaceMono-Bold.ttf
+          weight: 700
