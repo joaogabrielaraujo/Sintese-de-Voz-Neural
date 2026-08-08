@@ -23,6 +23,7 @@ import 'core/text/sentence_segmenter.dart';
 import 'core/text/sentence_model.dart';
 import 'ui/widgets/mos_evaluation_dialog.dart';
 import 'ui/app_theme.dart';
+import 'core/config/license_registry_config.dart';
 import 'ui/theme_preference.dart';
 import 'ui/widgets/library_view.dart';
 import 'ui/widgets/reader_page.dart';
@@ -30,6 +31,8 @@ import 'ui/widgets/responsive_navigation_shell.dart';
 import 'ui/widgets/settings_view.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  AppLicenseRegistry.registerLicenses();
   runApp(const TCCNeuralApp());
 }
 

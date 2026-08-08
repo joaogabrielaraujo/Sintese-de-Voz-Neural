@@ -1,0 +1,88 @@
+# VozLume — Open-Source Licenses & Legal Notices
+
+This project incorporates third-party open-source software, neural voice models, C++ runtime engines, and font families under their respective open-source licenses.
+
+---
+
+## 1. Project License
+
+Copyright (c) 2026 João Gabriel Araújo Almeida
+Engenharia de Computação — Universidade Estadual de Feira de Santana (UEFS)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 2. Neural Voice Models
+
+### Piper TTS / Faber VITS (PT-BR)
+- **License**: MIT License
+- **Author/Project**: Michael Hansen / Rhasspy (Piper TTS)
+- **Model**: `pt_BR-faber-medium.onnx`
+
+### Supertonic 3 (PT-BR INT8)
+- **License**: MIT License
+- **Author/Project**: Supertone Inc. / k2-fsa
+- **Model**: `sherpa-onnx-supertonic-3-tts-int8` (`duration_predictor`, `text_encoder`, `vector_estimator`, `vocoder`, `voice.bin`)
+
+---
+
+## 3. Native Runtime Engines
+
+### Sherpa-ONNX Engine
+- **License**: Apache License 2.0
+- **Authors**: k2-fsa (Dan Povey et al.)
+- **URL**: https://github.com/k2-fsa/sherpa-onnx
+
+### ONNX Runtime
+- **License**: MIT License
+- **Author**: Microsoft Corporation
+
+### espeak-ng (G2P Data & Language Rules)
+- **License**: GNU General Public License v3.0 / LGPLv3
+- **Author**: eSpeak NG Authors
+
+---
+
+## 4. Typography & Fonts
+
+### Spectral Font Family
+- **License**: SIL Open Font License 1.1
+- **Copyright**: (c) 2017, Production Type (http://www.productiontype.com)
+
+### Archivo Font Family
+- **License**: SIL Open Font License 1.1
+- **Copyright**: (c) 2012, Omnibus-Type (http://www.omnibus-type.com)
+
+### Space Mono Font Family
+- **License**: SIL Open Font License 1.1
+- **Copyright**: (c) 2016, Colophon Foundry (www.colophon-foundry.org)
+
+---
+
+## 5. Flutter / Dart Dependencies
+
+- **Flutter SDK & Dart SDK**: BSD 3-Clause License (Google LLC)
+- **sherpa_onnx**: Apache License 2.0 (k2-fsa)
+- **audioplayers**: MIT License (Blue Fire Team)
+- **flutter_tts**: BSD 3-Clause License
+- **file_picker**: MIT License (Miguel Ruivo)
+- **archive**: BSD 3-Clause License (Google LLC)
+- **crypto**: BSD 3-Clause License (Google LLC)
+- **path_provider & path**: BSD 3-Clause License (Google LLC)

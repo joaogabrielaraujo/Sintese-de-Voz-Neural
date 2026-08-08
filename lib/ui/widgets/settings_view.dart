@@ -189,6 +189,31 @@ class SettingsView extends StatelessWidget {
                 style: AppTextStyles.statusMono.copyWith(color: ext?.moss ?? theme.colorScheme.primary),
               ),
             ),
+            const SizedBox(height: AppSpacing.xl),
+            Text('Informações Legais', style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Consulte os termos de licença dos componentes open-source e modelos neurais.',
+              style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              key: const Key('open-source-licenses-button'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.md)),
+              ),
+              icon: const Icon(Icons.gavel),
+              label: const Text('Ver Licenças Open-Source'),
+              onPressed: () {
+                showLicensePage(
+                  context: context,
+                  applicationName: 'VozLume',
+                  applicationVersion: '1.0.0+1',
+                  applicationLegalese: '© 2026 João Gabriel Araújo Almeida — UEFS TCC',
+                );
+              },
+            ),
           ],
         ),
       ),

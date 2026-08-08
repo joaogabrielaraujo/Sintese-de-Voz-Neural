@@ -28,6 +28,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/models/
+    - assets/models/supertonic/
     - assets/models/espeak-ng-data/
     - assets/models/espeak-ng-data/lang/
     - assets/models/espeak-ng-data/lang/aav/
