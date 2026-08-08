@@ -1,117 +1,128 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-02T22:15:03.927Z",
-  "phase": "14",
-  "phase_name": "ui-redesign",
-  "phase_dir": ".planning/phases/14-ui-redesign",
-  "plan": "14-04",
-  "task": 0,
-  "total_tasks": 3,
+  "timestamp": "2026-08-07T22:28:18.1427194-03:00",
+  "phase": "15",
+  "phase_name": "supertonic-voice-engine",
+  "phase_dir": ".planning/phases/15-supertonic-voice-engine",
+  "plan": "15-01",
+  "task": 7,
+  "total_tasks": 7,
   "status": "paused",
   "completed_tasks": [
     {
-      "id": "android-jdk",
-      "name": "Registrar o JDK 21 do Android Studio no Flutter",
+      "id": 1,
+      "name": "Baseline e atualizacao controlada do sherpa-onnx",
       "status": "done",
-      "progress": "Flutter configurado com D:\\Program Files\\Android\\Android Studio\\jbr; Gradle 9.1.0 validado."
+      "commit": "5b82ea0",
+      "progress": "sherpa_onnx atualizado para 1.13.x; testes direcionados passaram antes/depois da mudanca."
     },
     {
-      "id": "android-gradle",
-      "name": "Corrigir compilacao Android ARM64 com AGP 9",
+      "id": 2,
+      "name": "POC isolada de sintese PT-BR",
       "status": "done",
-      "progress": "file_picker recebe Kotlin plugin/JVM 17 e o APK fica limitado a arm64-v8a; mudancas continuam nao commitadas."
+      "commit": "5b82ea0",
+      "progress": "tool/supertonic3_poc.dart criado; 3 WAVs PT-BR gerados offline no Windows com RTF entre 0.681 e 0.819."
     },
     {
-      "id": "android-release-apk",
-      "name": "Gerar e validar APK release ARM64 assinado",
+      "id": 3,
+      "name": "Gate de viabilidade go/no-go",
       "status": "done",
-      "progress": "app-release.apk gerado, assinatura v2 RSA 4096 verificada, somente ABI arm64-v8a, SHA-256 EEFB29AD9CDEBC9E4973924245BFE1CCEB31D07E0B18E6743EEC1022E832760B."
+      "progress": "Usuario ouviu as amostras e aprovou prosseguir. Decisao pratica: GO com restricoes."
     },
     {
-      "id": "android-process-cleanup",
-      "name": "Encerrar daemons pesados apos o build",
+      "id": 4,
+      "name": "Integracao no CompositeTTSEngine",
       "status": "done",
-      "progress": "GradleDaemon e KotlinCompileDaemon encerrados; nenhum processo Java do build ficou ativo."
+      "commit": "0119560",
+      "progress": "SupertonicOnnxEngine, TTSEngineType.supertonic e fallback no CompositeTTSEngine implementados."
+    },
+    {
+      "id": 5,
+      "name": "Assets e ciclo de vida",
+      "status": "partial",
+      "commit": "0119560",
+      "progress": "Validacao de presenca/nao vazio, lazy load e dispose implementados. Ainda faltam hash/integridade formal, telemetria de tamanho/RAM e teste de troca repetida medindo memoria."
+    },
+    {
+      "id": 6,
+      "name": "Seletor e persistencia na UI",
+      "status": "done",
+      "commit": "0119560",
+      "progress": "Preferencia persistida; Supertonic so aparece quando SUPERTONIC_MODEL_DIR aponta para instalacao completa; se indisponivel, volta para automatico."
     }
   ],
   "remaining_tasks": [
     {
-      "id": "android-device-uat",
-      "name": "Conectar o Motorola G85, instalar e abrir a build corrigida",
-      "status": "not_started"
-    },
-    {
-      "id": "android-runtime-uat",
-      "name": "Validar picker EPUB, TTS offline, audio e persistencia no aparelho",
-      "status": "not_started"
-    },
-    {
-      "id": "14-04",
-      "name": "Progresso duravel e estados de biblioteca/importacao",
-      "status": "not_started"
-    },
-    {
-      "id": "14-05-14-06",
-      "name": "Conectar metricas reais de streaming a UI",
-      "status": "not_started"
-    },
-    {
-      "id": "14-07",
-      "name": "Concluir UAT Android e Windows da fase",
-      "status": "not_started"
+      "id": 7,
+      "name": "Validacao Android/Windows e avaliacao do TCC",
+      "status": "not_done",
+      "progress": "Windows POC validada por audio humano. Falta rodar app real, preferencialmente no Motorola G85, medir latencia/RTF/RAM e registrar limitacoes. Android ainda nao tem estrategia final de instalacao/persistencia de assets; env vars nao resolvem Android."
     }
   ],
   "blockers": [
     {
-      "description": "O Motorola G85 nao esta conectado; a execucao nativa ainda nao foi verificada.",
+      "description": "Validacao Android real nao foi concluida. A tentativa de checar adb/flutter devices foi abortada pelo usuario antes de retornar saida.",
       "type": "human_action",
-      "workaround": "Conectar o aparelho, autorizar depuracao USB e confirmar o identificador em flutter devices."
+      "workaround": "Na proxima sessao, conectar/autorizar o Motorola G85 via USB e executar checagem de dispositivo antes de tentar flutter run."
     },
     {
-      "description": "O APK anteriormente instalado era debug; a build release usa outra assinatura e pode exigir desinstalacao antes da instalacao.",
-      "type": "human_action",
-      "workaround": "Tentar instalar primeiro. Se ocorrer INSTALL_FAILED_UPDATE_INCOMPATIBLE, obter aprovacao do usuario antes de desinstalar com.example.tcc_tts_neural; confirmar o applicationId real antes do comando."
+      "description": "Estrategia Android de entrega dos modelos Supertonic ainda nao esta fechada. O modelo extraido tem ~145 MB e o plano proibe empacotar centenas de MB sem medir impacto.",
+      "type": "technical",
+      "workaround": "Manter Supertonic como experimental/oculto no Android ate decidir entre assets embarcados, sideload local persistente ou download explicito local."
     }
   ],
   "async_jobs": [],
   "human_actions_pending": [
     {
-      "action": "Conectar o Motorola G85 e autorizar a depuracao USB.",
-      "context": "Sem o aparelho nao e possivel comprovar flutter run, instalacao, abertura ou o fluxo TTS real.",
+      "action": "Conectar e autorizar o Motorola G85 para teste real do app.",
+      "context": "A fase exige execucao real Android; APK isolado nao conta.",
       "blocking": true
     },
     {
-      "action": "Fornecer novamente a credencial da chave somente se for necessario reconstruir o release.",
-      "context": "A chave local esta fora do repositorio e a senha nao foi gravada nos artefatos GSD.",
-      "blocking": false
+      "action": "Decidir a estrategia de disponibilizacao dos assets Supertonic no Android.",
+      "context": "Sem isso, a integracao atual fica utilizavel principalmente no Windows/dev por SUPERTONIC_MODEL_DIR.",
+      "blocking": true
     }
   ],
   "decisions": [
     {
-      "decision": "Usar o JDK 21 incluido no Android Studio do disco D.",
-      "rationale": "E o JDK existente e validado com Gradle 9.1.0; o Flutter ja foi configurado com esse caminho.",
-      "phase": "14"
+      "decision": "Usar Supertonic 3 oficial via sherpa_onnx 1.13.x, nao Supersonic.",
+      "rationale": "O pacote oficial Supertonic 3 tem suporte direto na API do sherpa_onnx e gerou audio PT-BR offline aprovado pelo usuario.",
+      "phase": "15"
     },
     {
-      "decision": "Gerar release somente para arm64-v8a.",
-      "rationale": "O Motorola G85 e ARM64 e a exclusao das ABIs de emulador/32-bit reduz o pacote de teste.",
-      "phase": "14"
+      "decision": "Criar SupertonicOnnxEngine separado.",
+      "rationale": "A API/ciclo de vida e o modelo composto multi-arquivo diferem materialmente do motor Piper/VITS existente.",
+      "phase": "15"
     },
     {
-      "decision": "Manter a chave release fora do Git.",
-      "rationale": "Credenciais e material de assinatura nao devem entrar no repositorio; o handoff registra apenas caminho e alias.",
-      "phase": "14"
+      "decision": "Nao habilitar Supertonic quando os assets nao estiverem completos.",
+      "rationale": "Evita tela sem motor funcional e preserva fallback Piper/CLI.",
+      "phase": "15"
+    },
+    {
+      "decision": "Nao commitar modelo ONNX nem MBROLA DLL.",
+      "rationale": "Modelo e dependencias nativas ficaram em .planning/tmp por tamanho/licenca; precisam de estrategia propria antes de distribuicao.",
+      "phase": "15"
     }
   ],
   "uncommitted_files": [
-    "README.md",
-    "android/app/build.gradle.kts",
-    "android/build.gradle.kts",
-    "android/gradle.properties",
-    "android/gradle/wrapper/gradle-wrapper.properties",
-    "android/settings.gradle.kts",
-    "android/build/"
+    ".planning/HANDOFF.json",
+    ".planning/ROADMAP.md",
+    ".planning/STATE.md",
+    ".planning/phases/15-supertonic-voice-engine/.continue-here.md",
+    ".planning/phases/16-telemetria-tcc/",
+    "android/app/src/main/res/mipmap-*/ic_launcher*.png",
+    "assets/icons/",
+    "lib/ui/widgets/audio_player_control_bar.dart",
+    "lib/ui/widgets/library_view.dart",
+    "lib/ui/widgets/vozlume_icon.dart",
+    "pubspec.yaml",
+    "test/ui/audio_player_widget_test.dart",
+    "test/ui/redesign_widgets_test.dart",
+    "vozlume_icon_v1.svg",
+    ".planning/tmp/"
   ],
-  "next_action": "Conectar o Motorola G85, rodar flutter devices e tentar flutter run -d idmobile. Se idmobile nao existir, usar o ID exibido. Confirmar abertura antes de testar EPUB/TTS; capturar adb logcat em qualquer crash.",
-  "context_notes": "O build release local foi concluido e validado sem o telefone. APK: build/app/outputs/flutter-apk/app-release.apk (111889790 bytes). Chave local: D:\\VoxReleaseKeys\\vox-g85-local-release.jks, alias vox-g85; a senha nao deve ser commitada. No ambiente Codex, definir GRADLE_USER_HOME=C:\\Users\\55759\\.gradle quando o Gradle tentar usar C:\\.gradle. Depois de qualquer build, encerrar os daemons Gradle/Kotlin porque o usuario pediu para nao deixar o JDK consumindo recursos."
+  "next_action": "Retomar em .planning/phases/15-supertonic-voice-engine/15-PLAN.md, tarefa 7. Primeiro verificar git status para preservar alteracoes do usuario, depois checar dispositivo Android conectado. Em seguida decidir/implementar a estrategia de assets Android ou documentar GO com restricoes antes de encerrar a fase.",
+  "context_notes": "A integracao de codigo foi concluida e commitada. Nao marcar a Fase 15 como completa ainda: falta validacao Android real, RAM/latencia comparavel e conclusao formal sobre distribuicao de assets. O caminho prudente e tratar Supertonic como experimental e condicionado a modelo local completo ate esses pontos serem resolvidos."
 }
