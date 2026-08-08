@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
@@ -42,6 +43,20 @@ Future<void> main(List<String> args) async {
 
   outputDir.createSync(recursive: true);
   final nativeLibraryDirectory = Platform.environment['SHERPA_ONNX_DLL_DIR'];
+  final nativeHandles = <DynamicLibrary>[];
+  if (Platform.isWindows && nativeLibraryDirectory != null) {
+    for (final name in const [
+      'mbrola.dll',
+      'onnxruntime.dll',
+      'onnxruntime_providers_shared.dll',
+    ]) {
+      nativeHandles.add(
+        DynamicLibrary.open(
+          '$nativeLibraryDirectory${Platform.pathSeparator}$name',
+        ),
+      );
+    }
+  }
   sherpa.initBindings(nativeLibraryDirectory);
   final tts = sherpa.OfflineTts(
     sherpa.OfflineTtsConfig(
@@ -100,6 +115,8 @@ Future<void> main(List<String> args) async {
     }
   } finally {
     tts.free();
+    // Keep dependency handles alive until the Sherpa runtime is released.
+    nativeHandles.clear();
   }
 
   final report = File('${outputDir.path}${Platform.pathSeparator}metrics.json');
