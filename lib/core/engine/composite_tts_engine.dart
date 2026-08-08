@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../audio/wav_writer.dart';
 import '../config/tts_config.dart';
 import 'sherpa_onnx_cli_engine.dart';
@@ -6,11 +7,7 @@ import 'sherpa_onnx_engine.dart';
 import 'tts_engine_interface.dart';
 import 'tts_engine_type.dart';
 
-/// Motor Composto Resiliente com Failover Automático Transparente.
-///
-/// Tenta inicializar o motor neural primário Sherpa-ONNX (C++ VITS HiFi-GAN).
-/// Se a DLL nativa não estiver presente, chaveia automaticamente e sem travamentos
-/// para os motores de reserva (FlutterTTS Nativo do Sistema ou VITS Local).
+/// Motor composto com seleção explícita e failover entre motores locais.
 class CompositeTTSEngine extends ITTSEngine {
   @override
   final TTSConfig config;
@@ -21,23 +18,39 @@ class CompositeTTSEngine extends ITTSEngine {
 
   final ITTSEngine _sherpaEngine;
   final ITTSEngine _cliEngine;
+  final ITTSEngine? _supertonicEngine;
 
   CompositeTTSEngine({
     TTSConfig? config,
     TTSEngineType initialType = TTSEngineType.autoFailover,
     ITTSEngine? sherpaEngine,
     ITTSEngine? cliEngine,
-  }) : config = config ?? TTSConfig.defaultPtBr(),
-       _selectedType = initialType,
-       _sherpaEngine =
-           sherpaEngine ??
-           SherpaOnnxTTSEngine(config: config ?? TTSConfig.defaultPtBr()),
-       _cliEngine =
-           cliEngine ??
-           SherpaOnnxCliEngine(config: config ?? TTSConfig.defaultPtBr());
+    ITTSEngine? supertonicEngine,
+  })  : config = config ?? TTSConfig.defaultPtBr(),
+        _selectedType = initialType,
+        _supertonicEngine = supertonicEngine,
+        _sherpaEngine = sherpaEngine ??
+            SherpaOnnxTTSEngine(config: config ?? TTSConfig.defaultPtBr()),
+        _cliEngine = cliEngine ??
+            SherpaOnnxCliEngine(config: config ?? TTSConfig.defaultPtBr());
 
   TTSEngineType get selectedType => _selectedType;
   TTSEngineType? get activeType => _activeType;
+  bool get hasSupertonic => _supertonicEngine != null;
+
+  List<TTSEngineType> get availableEngineTypes => [
+        TTSEngineType.autoFailover,
+        if (hasSupertonic) TTSEngineType.supertonic,
+        TTSEngineType.sherpaOnnx,
+        TTSEngineType.sherpaOnnxCli,
+      ];
+
+  List<(ITTSEngine, TTSEngineType)> get _autoCandidates => [
+        if (_supertonicEngine != null)
+          (_supertonicEngine!, TTSEngineType.supertonic),
+        (_sherpaEngine, TTSEngineType.sherpaOnnx),
+        (_cliEngine, TTSEngineType.sherpaOnnxCli),
+      ];
 
   Future<void> setEngineType(TTSEngineType newType) async {
     if (_selectedType == newType) return;
@@ -54,44 +67,32 @@ class CompositeTTSEngine extends ITTSEngine {
   @override
   Future<void> initialize() async {
     switch (_selectedType) {
+      case TTSEngineType.supertonic:
+        final engine = _supertonicEngine;
+        if (engine == null) {
+          throw const TTSEngineInitializationException(
+            'Supertonic 3 não está instalado neste dispositivo.',
+          );
+        }
+        await _initializeRequired(engine, TTSEngineType.supertonic);
       case TTSEngineType.sherpaOnnx:
         await _initializeRequired(_sherpaEngine, TTSEngineType.sherpaOnnx);
-        break;
-
       case TTSEngineType.sherpaOnnxCli:
         await _initializeRequired(_cliEngine, TTSEngineType.sherpaOnnxCli);
-        break;
-
       case TTSEngineType.vitsLocal:
       case TTSEngineType.flutterTts:
         throw TTSEngineInitializationException(
-          '${_selectedType.label} does not implement the AudioBuffer contract and is unavailable.',
+          '${_selectedType.label} não implementa o contrato AudioBuffer.',
         );
-
       case TTSEngineType.autoFailover:
-        final sherpaOk = await _tryInitializeEngine(_sherpaEngine);
-        if (sherpaOk && _sherpaEngine.isInitialized) {
-          _activeEngine = _sherpaEngine;
-          _activeType = TTSEngineType.sherpaOnnx;
-          debugPrint(
-            '[CompositeTTSEngine] Motor Primário Ativado: Sherpa-ONNX C++ VITS Neural',
-          );
-          break;
+        for (final candidate in _autoCandidates) {
+          if (await _activateCandidate(candidate)) break;
         }
-
-        final cliOk = await _tryInitializeEngine(_cliEngine);
-        if (cliOk && _cliEngine.isInitialized) {
-          _activeEngine = _cliEngine;
-          _activeType = TTSEngineType.sherpaOnnxCli;
-          debugPrint(
-            '[CompositeTTSEngine] Motor de fallback ativado: Sherpa-ONNX CLI',
+        if (_activeEngine == null) {
+          throw const TTSEngineInitializationException(
+            'Nenhum motor TTS local está disponível. Instale o Supertonic ou configure Sherpa FFI/CLI.',
           );
-          break;
         }
-
-        throw const TTSEngineInitializationException(
-          'No real AudioBuffer-producing TTS engine is available. Configure Sherpa FFI or CLI with a complete model and espeak-ng-data.',
-        );
     }
   }
 
@@ -102,7 +103,7 @@ class CompositeTTSEngine extends ITTSEngine {
     await engine.initialize();
     if (!engine.isInitialized) {
       throw TTSEngineInitializationException(
-        '${type.label} did not finish initialization.',
+        '${type.label} não concluiu a inicialização.',
       );
     }
     _activeEngine = engine;
@@ -113,12 +114,20 @@ class CompositeTTSEngine extends ITTSEngine {
     try {
       await engine.initialize();
       return engine.isInitialized;
-    } catch (e) {
+    } on Object catch (error) {
       debugPrint(
-        '[CompositeTTSEngine] Falha ao inicializar motor (${engine.runtimeType}): $e',
+        '[CompositeTTSEngine] Falha ao inicializar ${engine.runtimeType}: $error',
       );
       return false;
     }
+  }
+
+  Future<bool> _activateCandidate((ITTSEngine, TTSEngineType) candidate) async {
+    if (!await _tryInitializeEngine(candidate.$1)) return false;
+    _activeEngine = candidate.$1;
+    _activeType = candidate.$2;
+    debugPrint('[CompositeTTSEngine] Motor ativado: ${candidate.$2.label}');
+    return true;
   }
 
   @override
@@ -129,31 +138,37 @@ class CompositeTTSEngine extends ITTSEngine {
         sampleRate: config.sampleRate,
       );
     }
-    if (!isInitialized || _activeEngine == null) {
-      await initialize();
-    }
+    if (!isInitialized || _activeEngine == null) await initialize();
 
     try {
-      final AudioBuffer result = await _activeEngine!.synthesize(text);
+      final result = await _activeEngine!.synthesize(text);
       _validateAudio(result);
       return result;
-    } catch (e, stack) {
+    } on Object catch (error, stack) {
       debugPrint(
-        '[CompositeTTSEngine] Falha na síntese com motor (${_activeEngine.runtimeType}): $e',
+        '[CompositeTTSEngine] Falha na síntese com ${_activeEngine.runtimeType}: $error',
       );
-      if (_selectedType == TTSEngineType.autoFailover &&
-          _activeEngine != _cliEngine &&
-          await _tryInitializeEngine(_cliEngine)) {
-        _activeEngine = _cliEngine;
-        _activeType = TTSEngineType.sherpaOnnxCli;
-        final fallbackResult = await _cliEngine.synthesize(text);
-        _validateAudio(fallbackResult);
-        return fallbackResult;
+      if (_selectedType == TTSEngineType.autoFailover) {
+        final currentIndex = _autoCandidates.indexWhere(
+          (candidate) => identical(candidate.$1, _activeEngine),
+        );
+        for (final candidate in _autoCandidates.skip(currentIndex + 1)) {
+          if (!await _activateCandidate(candidate)) continue;
+          try {
+            final fallback = await candidate.$1.synthesize(text);
+            _validateAudio(fallback);
+            return fallback;
+          } on Object catch (fallbackError) {
+            debugPrint(
+              '[CompositeTTSEngine] Falha no fallback ${candidate.$2.label}: $fallbackError',
+            );
+          }
+        }
       }
       Error.throwWithStackTrace(
-        e is TTSSynthesisException
-            ? e
-            : TTSSynthesisException('All configured TTS engines failed.', e),
+        error is TTSSynthesisException
+            ? error
+            : TTSSynthesisException('Todos os motores TTS falharam.', error),
         stack,
       );
     }
@@ -161,34 +176,27 @@ class CompositeTTSEngine extends ITTSEngine {
 
   void _validateAudio(AudioBuffer audio) {
     if (audio.sampleRate <= 0 || audio.numChannels <= 0) {
-      throw const TTSSynthesisException(
-        'TTS returned an invalid audio format.',
-      );
+      throw const TTSSynthesisException('Formato de áudio TTS inválido.');
     }
     if (audio.samples.isEmpty ||
         audio.samples.length % audio.numChannels != 0) {
-      throw const TTSSynthesisException(
-        'TTS returned no complete audio frames.',
-      );
+      throw const TTSSynthesisException('TTS não retornou quadros completos.');
     }
-
-    double peak = 0.0;
+    var peak = 0.0;
     for (final sample in audio.samples) {
       if (!sample.isFinite) {
-        throw const TTSSynthesisException('TTS returned non-finite samples.');
+        throw const TTSSynthesisException('TTS retornou amostras não finitas.');
       }
-      final magnitude = sample.abs();
-      if (magnitude > peak) peak = magnitude;
+      if (sample.abs() > peak) peak = sample.abs();
     }
     if (peak <= 0.00001) {
-      throw const TTSSynthesisException(
-        'TTS returned effectively silent audio.',
-      );
+      throw const TTSSynthesisException('TTS retornou áudio silencioso.');
     }
   }
 
   @override
   Future<void> dispose() async {
+    await _supertonicEngine?.dispose();
     await _sherpaEngine.dispose();
     await _cliEngine.dispose();
     _activeEngine = null;

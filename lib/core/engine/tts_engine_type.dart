@@ -3,6 +3,9 @@ enum TTSEngineType {
   /// Modo Resiliente Inteligente com Failover Automático (Sherpa ONNX -> VITS Local -> Native TTS)
   autoFailover,
 
+  /// Supertonic 3 multilíngue, executado localmente via sherpa-onnx.
+  supertonic,
+
   /// Motor Neural C++ Sherpa-ONNX VITS (Modelo pt_BR-faber-medium.onnx)
   sherpaOnnx,
 
@@ -21,6 +24,8 @@ extension TTSEngineTypeExtension on TTSEngineType {
     switch (this) {
       case TTSEngineType.autoFailover:
         return 'Auto-Failover (Inteligente)';
+      case TTSEngineType.supertonic:
+        return 'Supertonic 3 (Português BR)';
       case TTSEngineType.sherpaOnnx:
         return 'Sherpa-ONNX C++ (HiFi-GAN Faber)';
       case TTSEngineType.sherpaOnnxCli:
@@ -36,6 +41,8 @@ extension TTSEngineTypeExtension on TTSEngineType {
     switch (this) {
       case TTSEngineType.autoFailover:
         return 'Tenta Sherpa-ONNX CLI/C++. Se falhar no Windows/Android, chaveia automaticamente para VITS Local/Nativo.';
+      case TTSEngineType.supertonic:
+        return 'Voz neural multilíngue offline com modelo Supertonic 3 instalado localmente.';
       case TTSEngineType.sherpaOnnx:
         return 'Inferência C++ HiFi-GAN em tempo real do modelo Faber em Português BR.';
       case TTSEngineType.sherpaOnnxCli:

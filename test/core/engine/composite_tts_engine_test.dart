@@ -12,9 +12,14 @@ class FakeAudioEngine extends ITTSEngine {
   final TTSConfig config = TTSConfig.defaultPtBr();
   final AudioBuffer output;
   final bool failInitialization;
+  final bool failSynthesis;
   bool _initialized = false;
 
-  FakeAudioEngine(this.output, {this.failInitialization = false});
+  FakeAudioEngine(
+    this.output, {
+    this.failInitialization = false,
+    this.failSynthesis = false,
+  });
 
   @override
   bool get isInitialized => _initialized;
@@ -28,7 +33,10 @@ class FakeAudioEngine extends ITTSEngine {
   }
 
   @override
-  Future<AudioBuffer> synthesize(String text) async => output;
+  Future<AudioBuffer> synthesize(String text) async {
+    if (failSynthesis) throw StateError('controlled synthesis failure');
+    return output;
+  }
 
   @override
   Future<void> dispose() async => _initialized = false;
@@ -52,6 +60,52 @@ void main() {
 
     expect(engine.activeType, TTSEngineType.sherpaOnnxCli);
     expect(result.samples.any((sample) => sample.abs() > 0.00001), isTrue);
+    await engine.dispose();
+  });
+
+  test('auto failover prefers an installed Supertonic engine', () async {
+    final engine = CompositeTTSEngine(
+      supertonicEngine: FakeAudioEngine(audible),
+      sherpaEngine: FakeAudioEngine(audible),
+      cliEngine: FakeAudioEngine(audible),
+    );
+
+    await engine.initialize();
+
+    expect(engine.activeType, TTSEngineType.supertonic);
+    expect(engine.availableEngineTypes, contains(TTSEngineType.supertonic));
+    await engine.dispose();
+  });
+
+  test('falls back from Supertonic synthesis failure to Piper', () async {
+    final engine = CompositeTTSEngine(
+      supertonicEngine: FakeAudioEngine(audible, failSynthesis: true),
+      sherpaEngine: FakeAudioEngine(audible),
+      cliEngine: FakeAudioEngine(audible),
+    );
+
+    await engine.initialize();
+    final result = await engine.synthesize('fala real');
+
+    expect(engine.activeType, TTSEngineType.sherpaOnnx);
+    expect(result.samples, audible.samples);
+    await engine.dispose();
+  });
+
+  test('explicit Supertonic selection fails when it is not installed',
+      () async {
+    final engine = CompositeTTSEngine(
+      initialType: TTSEngineType.supertonic,
+      sherpaEngine: FakeAudioEngine(audible),
+      cliEngine: FakeAudioEngine(audible),
+    );
+
+    await expectLater(
+      engine.initialize(),
+      throwsA(isA<TTSEngineInitializationException>()),
+    );
+    expect(
+        engine.availableEngineTypes, isNot(contains(TTSEngineType.supertonic)));
     await engine.dispose();
   });
 

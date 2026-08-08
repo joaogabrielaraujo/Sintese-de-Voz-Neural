@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'core/audio/audio_player_service.dart';
 import 'core/audio/audio_player_service_interface.dart';
 import 'core/config/tts_config.dart';
+import 'core/config/supertonic_config.dart';
+import 'core/config/tts_engine_preference.dart';
 import 'core/engine/composite_tts_engine.dart';
+import 'core/engine/supertonic_onnx_engine.dart';
 import 'core/engine/tts_engine_type.dart';
 import 'core/document/epub_model.dart';
 import 'core/document/epub_bytes_importer.dart';
@@ -45,7 +49,8 @@ class _TCCNeuralAppState extends State<TCCNeuralApp> {
   @override
   void initState() {
     super.initState();
-    _themeRepo = widget.themePreferenceRepository ?? ThemePreferenceRepository();
+    _themeRepo =
+        widget.themePreferenceRepository ?? ThemePreferenceRepository();
     unawaited(_loadTheme());
   }
 
@@ -99,15 +104,11 @@ class PoCNeuralHomePage extends StatefulWidget {
 
 class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     with WidgetsBindingObserver {
-  static const _selectableEngineTypes = <TTSEngineType>[
-    TTSEngineType.autoFailover,
-    TTSEngineType.sherpaOnnx,
-    TTSEngineType.sherpaOnnxCli,
-  ];
-
   late final CompositeTTSEngine _engine;
   late final PipelineOrchestrator _orchestrator;
   late final IAudioPlayerService _audioPlayer;
+  final TTSEnginePreferenceRepository _enginePreference =
+      TTSEnginePreferenceRepository();
 
   EpubBook? _loadedBook;
   EpubChapter? _currentChapter;
@@ -160,14 +161,52 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // Instancia o CompositeTTSEngine resiliente com Failover Automático
-    _engine = CompositeTTSEngine(config: TTSConfig.defaultPtBr());
-    _orchestrator = widget.orchestrator ?? PipelineOrchestrator(engine: _engine);
+    _engine = _createEngine();
+    _orchestrator =
+        widget.orchestrator ?? PipelineOrchestrator(engine: _engine);
 
     // Usa AudioPlayerService nativo para reprodução de áudio real
     _audioPlayer = widget.audioPlayer ?? AudioPlayerService();
 
     _initAudioListeners();
     unawaited(_loadSavedBooks());
+    unawaited(_loadEnginePreference());
+  }
+
+  Future<void> _loadEnginePreference() async {
+    final type = await _enginePreference.load(
+      hasSupertonic: _engine.hasSupertonic,
+    );
+    if (type == _engine.selectedType) return;
+    try {
+      await _engine.setEngineType(type);
+      if (mounted) setState(() {});
+    } on Object {
+      await _engine.setEngineType(TTSEngineType.autoFailover);
+      if (mounted) setState(() {});
+    }
+  }
+
+  CompositeTTSEngine _createEngine() {
+    final baseConfig = TTSConfig.defaultPtBr();
+    final modelDirectory = Platform.environment['SUPERTONIC_MODEL_DIR'];
+    if (modelDirectory == null || modelDirectory.trim().isEmpty) {
+      return CompositeTTSEngine(config: baseConfig);
+    }
+    final supertonicConfig = SupertonicConfig(
+      modelDirectory: modelDirectory,
+      nativeLibraryDirectory: Platform.environment['SHERPA_ONNX_DLL_DIR'],
+    );
+    if (!supertonicConfig.isInstalled) {
+      return CompositeTTSEngine(config: baseConfig);
+    }
+    return CompositeTTSEngine(
+      config: baseConfig,
+      supertonicEngine: SupertonicOnnxEngine(
+        config: baseConfig,
+        supertonicConfig: supertonicConfig,
+      ),
+    );
   }
 
   Future<void> _loadSavedBooks() async {
@@ -654,7 +693,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
     final iterator = _streamIterator;
     final queue = _streamQueue;
     final active = _activeStreamingItem;
-    if (iterator == null || queue == null || active == null ||
+    if (iterator == null ||
+        queue == null ||
+        active == null ||
         !_isCurrentStream(generation, iterator, queue) ||
         !identical(active, _activeStreamingItem)) {
       return;
@@ -777,6 +818,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       } else {
         await _engine.setEngineType(type);
       }
+      await _enginePreference.save(type);
       if (!mounted) return;
       setState(() => _isProcessing = false);
     } catch (error) {
@@ -876,7 +918,7 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
   Widget _buildDestinationBody() {
     if (_destination == AppDestination.settings) {
       return SettingsView(
-        engineTypes: _selectableEngineTypes,
+        engineTypes: _engine.availableEngineTypes,
         selectedType: _engine.selectedType,
         activeEngineLabel:
             _engine.activeType?.label ?? 'Nenhum motor inicializado',
@@ -909,19 +951,22 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       actions: [
         if (_savedMOSRatings.isNotEmpty)
           Chip(
-            avatar: Icon(Icons.star, color: ext?.grifo ?? theme.colorScheme.primary, size: 16),
+            avatar: Icon(Icons.star,
+                color: ext?.grifo ?? theme.colorScheme.primary, size: 16),
             label: Text(
               'MOS ${(_savedMOSRatings.map((rating) => rating.averageScore).reduce((a, b) => a + b) / _savedMOSRatings.length).toStringAsFixed(2)}',
             ),
           ),
         if (_lastResult != null)
           IconButton(
-            icon: Icon(Icons.assignment_outlined, color: ext?.moss ?? theme.colorScheme.primary),
+            icon: Icon(Icons.assignment_outlined,
+                color: ext?.moss ?? theme.colorScheme.primary),
             tooltip: 'Ver relatório de desempenho',
             onPressed: _showAcademicReportDialog,
           ),
         IconButton(
-          icon: Icon(Icons.info_outline, color: ext?.textSoft ?? theme.colorScheme.onSurface),
+          icon: Icon(Icons.info_outline,
+              color: ext?.textSoft ?? theme.colorScheme.onSurface),
           tooltip: 'Sobre a arquitetura',
           onPressed: _showArchitectureInfo,
         ),
