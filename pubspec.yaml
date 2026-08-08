@@ -13,7 +13,7 @@ dependencies:
   path_provider: ^2.1.2
   audioplayers: ^6.0.0
   flutter_tts: ^4.0.2
-  sherpa_onnx: ^1.10.15
+  sherpa_onnx: ^1.13.2
   file_picker: ^11.0.2
   archive: ^4.0.9
   crypto: ^3.0.7
