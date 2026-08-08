@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import 'package:tcc_tts_neural/core/audio/wav_writer.dart';
+import 'package:tcc_tts_neural/core/text/tts_normalizer.dart';
 
 const _corpus = <String>[
   'Olá! Esta é uma demonstração de síntese de voz em português brasileiro.',
@@ -70,7 +71,7 @@ Future<void> main(List<String> args) async {
           unicodeIndexer: paths['unicodeIndexer']!,
           voiceStyle: paths['voiceStyle']!,
         ),
-        numThreads: 2,
+        numThreads: 4,
         debug: false,
         provider: 'cpu',
       ),
@@ -80,14 +81,20 @@ Future<void> main(List<String> args) async {
   final results = <Map<String, Object>>[];
   try {
     for (var index = 0; index < _corpus.length; index++) {
+      final rawText = _corpus[index];
+      final normalizedText = TTSNormalizer.normalize(rawText);
+      stdout.writeln('Sintetizando Amostra ${index + 1}:');
+      stdout.writeln('  Bruto: "$rawText"');
+      stdout.writeln('  Normalizado: "$normalizedText"');
+
       final stopwatch = Stopwatch()..start();
       final audio = tts.generateWithConfig(
-        text: _corpus[index],
+        text: normalizedText,
         config: const sherpa.OfflineTtsGenerationConfig(
           sid: 0,
-          speed: 1,
-          numSteps: 8,
-          extra: {'lang': 'pt', 'num_steps': 8},
+          speed: 2.0,
+          numSteps: 6,
+          extra: {'lang': 'pt', 'num_steps': 6},
         ),
       );
       stopwatch.stop();
@@ -105,7 +112,8 @@ Future<void> main(List<String> args) async {
       final synthesisSeconds = stopwatch.elapsedMicroseconds / 1000000;
       results.add({
         'sample': index + 1,
-        'text': _corpus[index],
+        'rawText': rawText,
+        'normalizedText': normalizedText,
         'wav': output.path,
         'sampleRate': buffer.sampleRate,
         'audioSeconds': buffer.durationInSeconds,
@@ -125,7 +133,8 @@ Future<void> main(List<String> args) async {
       'modelDirectory': modelDir.path,
       'language': 'pt',
       'speakerId': 0,
-      'numSteps': 8,
+      'numSteps': 12,
+      'normalized': true,
       'results': results,
     }),
     flush: true,

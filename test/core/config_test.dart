@@ -7,9 +7,9 @@ void main() {
       final config = TTSConfig.defaultPtBr();
 
       expect(config.sampleRate, equals(22050));
-      expect(config.numThreads, equals(2));
-      expect(config.noiseScale, equals(0.667));
-      expect(config.lengthScale, equals(1.25));
+      expect(config.numThreads, equals(4));
+      expect(config.noiseScale, equals(0.85));
+      expect(config.lengthScale, equals(1.12));
       expect(config.modelPath, contains('pt_BR-faber-medium.onnx'));
       expect(config.espeakDataPath, equals('assets/models/espeak-ng-data'));
     });

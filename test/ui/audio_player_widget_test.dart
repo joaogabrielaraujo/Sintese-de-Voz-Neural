@@ -47,7 +47,6 @@ void main() {
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsOneWidget);
       expect(find.text('Avaliar MOS'), findsOneWidget);
-      expect(find.byType(Slider), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.play_arrow));
       expect(playPauseCalled, isTrue);

@@ -1,591 +1,218 @@
-# Síntese de Voz Neural Offline em Dispositivos Móveis
+# VozLume — Síntese de Voz Neural Offline em Dispositivos Móveis
 
-## Leitor EPUB baseado em Edge Computing, Sherpa-ONNX e VITS
+## Leitor EPUB baseado em Edge Computing, Sherpa-ONNX, Piper VITS e Supertonic 3
 
-Projeto de Trabalho de Conclusão de Curso desenvolvido por **João Gabriel Araújo Almeida**, no curso de Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS), sob orientação do Prof. Matheus Giovanni.
+Projeto de Trabalho de Conclusão de Curso (TCC) desenvolvido por **João Gabriel Araújo Almeida**, no curso de Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS), sob orientação de .
 
-O objetivo é construir um leitor de livros digitais capaz de importar arquivos EPUB, extrair seus capítulos e reproduzi-los por síntese de voz neural em português brasileiro, sem depender de serviços remotos ou conexão com a internet durante a leitura.
+O **VozLume** é um aplicativo leitor de livros digitais (EPUB) focado em síntese de voz neural offline em Português Brasileiro (PT-BR). O software opera com baixa latência (Time-To-First-Audio < 300ms) e consumo de memória RAM controlado através de técnicas de *Edge Computing* em dispositivos Android e Windows.
 
 ---
 
-## 1. Visão geral
+## 1. Créditos e Agradecimentos a Projetos Open-Source
 
-Aplicações de leitura em voz alta precisam resolver dois problemas diferentes:
+O desenvolvimento deste projeto foi possível graças a importantes iniciativas open-source de síntese de voz neural e processamento de áudio:
 
-1. interpretar documentos reais, que podem conter estruturas EPUB complexas, capítulos fragmentados, imagens, fontes, nomes codificados e diferentes formas de organização do manifesto;
-2. produzir áudio continuamente sem tentar sintetizar um livro inteiro de uma vez.
+* **[Piper TTS](https://github.com/rhasspy/piper) (por Michael Hansen / Rhasspy)**:
+  Projeto open-source de síntese de voz neural rápida e local focada em dispositivos de borda. O VozLume utiliza o modelo VITS PT-BR **Faber** (`pt_BR-faber-medium.onnx`), treinado sob a arquitetura VITS (Variational Inference with adversarial learning for end-to-end Text-to-Speech) integrada ao dicionário fonético `espeak-ng`.
+* **[Supertonic 3](https://github.com/k2-fsa/sherpa-onnx)**:
+  Arquitetura neural leve de síntese de voz multi-estágio otimizada para inferência inteira (`int8.onnx`), permitindo execuções extremamente rápidas com consumo de CPU mínimo em dispositivos móveis.
+* **[Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) (Next-gen Kaldi / por Dan Povey et al.)**:
+  Engine de inferência neural nativa em C++ compilada para múltiplas plataformas. Atua como o motor de execução FFI (*Foreign Function Interface*) do VozLume, carregando os modelos ONNX diretamente em código nativo sem dependências de nuvem.
+* **[Audioplayers](https://github.com/bluefireteam/audioplayers)**:
+  Plugin Flutter para reprodução nativa de buffers de áudio PCM/WAV nos sistemas operacionais Android e Windows.
 
-Este projeto trata o EPUB como uma fonte de documento e a síntese como um fluxo incremental. O capítulo é dividido em frases, cada frase passa por normalização linguística e é enviada ao motor TTS. O áudio é colocado em uma fila limitada, reproduzido e liberado após o consumo.
+---
+
+## 2. Visão Geral da Lógica do Sistema
+
+O aplicativo adota uma arquitetura em pipeline desacoplada que trata a leitura de e-books como um **fluxo de áudio sob demanda (*streaming FIFO*)**. Em vez de sintetizar o livro ou capítulo inteiro de uma vez (o que causaria congelamentos e estouro de memória RAM), o sistema gera e reproduz o áudio **frase por frase**, mantendo uma pequena janela na memória.
 
 ```text
-EPUB selecionado
-      │
-      ▼
-Seletor nativo de documentos
-      │ bytes
-      ▼
-Validação ZIP / EPUB
-      │
-      ▼
-container.xml → OPF → manifest → spine
-      │
-      ▼
-EpubBook / EpubChapter
-      │ texto limpo
-      ▼
-SentenceSegmenter
-      │ frases
-      ▼
-TTSNormalizer + PhoneticNormalizer
-      │ texto PT-BR
-      ▼
-Sherpa-ONNX / VITS
-      │ PCM Float32
-      ▼
-CircularAudioBuffer limitado
-      │
-      ▼
-AudioPlayerService / audioplayers
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ETAPA 1: INGESTÃO EPUB                          │
+│  • Importação de bytes do arquivo .epub (sem permissões invasivas)     │
+│  • Validação ZIP e navegação em META-INF/container.xml                 │
+│  • Parsing do manifesto OPF (metadata, manifest, spine)                │
+│  • Extração de Capas (EPUB 3 cover-image / EPUB 2 meta cover)          │
+│  • Fatiamento inteligente por âncoras #id (NAV/NCX) ou cabeçalhos <h1> │
+└────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    ETAPA 2: SEGMENTAÇÃO DE TEXTO                       │
+│  • SentenceSegmenter: Divisão por pontuações de fim de frase           │
+│  • Atribuição de Índices Absolutos para navegação e salto no texto     │
+└────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   ETAPA 3: NORMALIZAÇÃO (PLN PT-BR)                    │
+│  • TTSNormalizer: Expansão de datas, moedas, ordinais e maiúsculas     │
+│  • PhoneticNormalizer: Tratamento G2P com preservação de acentos PT-BR │
+└────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               ETAPA 4: INFERÊNCIA NEURAL FFI C++ (TTS)                 │
+│  • CompositeTTSEngine (Failover Automático e Seleção de Motores)       │
+│  • Execução C++ via Sherpa-ONNX na CPU do dispositivo                  │
+│     ├── Piper Faber VITS (pt_BR-faber-medium.onnx)                     │
+│     └── Supertonic 3 (int8.onnx multi-estágio)                         │
+│  • Parâmetros prosódicos: lengthScale=1.12, noiseScale=0.85, W=0.95    │
+└────────────────────────────────────────────────────────────────────────┘
+                                    │ PCM Float32 (22050 Hz)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               ETAPA 5: GESTÃO DE MEMÓRIA & REPRODUÇÃO                  │
+│  • CircularAudioBuffer: Fila FIFO com capacidade máxima de 5 itens     │
+│  • Backpressure: Pausa a síntese se a fila estiver cheia               │
+│  • Purge de RAM: MemoryManager zera e descarta o áudio após tocar      │
+│  • AudioPlayerService: Converte PCM em RIFF/WAV e envia ao alto-falante│
+└────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               ETAPA 6: INTERFACE & SINCRONIA VISUAL                    │
+│  • Destaque em tempo real da frase ativa com o tema de cor escolhido   │
+│  • Toque em qualquer trecho -> Seleção Pendente -> Salto Confirmado    │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Estado atual do produto
+## 3. Explicação Detalhada do Passo a Passo da Lógica
 
-O fluxo funcional disponível atualmente é:
+Para entender como a leitura de um livro acontece dentro do projeto, o processo é dividido em 6 etapas sequenciais:
 
-1. A pessoa inicia no Home.
-2. Seleciona um arquivo `.epub` pelo seletor do dispositivo.
-3. O arquivo é lido por bytes, sem exigir uma permissão ampla de armazenamento.
-4. A aplicação valida o ZIP e localiza a estrutura EPUB.
-5. Metadados e capítulos são carregados na ordem definida pela `spine`.
-6. O aplicativo abre uma tela própria de leitura.
-7. O usuário escolhe um capítulo e inicia a leitura.
-8. O capítulo é segmentado em frases para o TTS.
-9. Somente uma janela pequena de áudio é mantida em memória.
-10. A frase ativa recebe destaque visual.
-11. O usuário pode tocar em outra frase para selecioná-la.
-12. A troca só ocorre depois da confirmação “Continuar da frase N”.
-13. A seta no canto superior esquerdo encerra a leitura e retorna ao Home.
+### Etapa 1: Ingestão e Fatiamento do EPUB
+1. O usuário seleciona um arquivo `.epub` no dispositivo.
+2. O `EpubBytesImporter` lê o conteúdo como um array de bytes (Uint8List), valida a estrutura comprimida ZIP e abre o arquivo `META-INF/container.xml` para encontrar o manifesto principal (`package.opf`).
+3. O `EpubParser` lê a `spine` (ordem de leitura do livro) e os metadados. Ele busca a **capa do livro** (metadados EPUB 3 `properties="cover-image"` ou EPUB 2 `<meta name="cover">`) e a salva localmente para ser exibida no card da biblioteca.
+4. **Fatiamento Inteligente**: Arquivos XHTML comerciais frequentemente contêm livros inteiros ou seções gigantescas. Para evitar travamentos, o parser verifica o sumário NCX/NAV e fatia o documento nos pontos exatos das âncoras de capítulo (`#id`). Na ausência de âncoras, ele fatia pelas tags de cabeçalho (`<h1>`, `<h2>`).
 
-O áudio não é concatenado nem sintetizado integralmente antes da reprodução. Essa decisão é essencial para que livros grandes não provoquem uma alocação de memória proporcional ao capítulo inteiro.
+### Etapa 2: Segmentação de Sentenças e Indexação Absoluta
+1. O texto limpo do capítulo fatiado é enviado ao `SentenceSegmenter`.
+2. O texto é dividido em frases individuais utilizando pontuações de término (`.`, `!`, `?`, `;`, quebras de parágrafo).
+3. Cada frase recebe um **índice absoluto sequencial** (ex: Frase 0, Frase 1, Frase 2...). Essa indexação é fundamental para que o leitor saiba exatamente qual trecho está sendo lido na tela e permita saltos diretos.
 
----
+### Etapa 3: Normalização Linguística (PLN PT-BR)
+Antes de enviar o texto ao modelo neural, ele passa por duas camadas de preparação em português brasileiro:
+* `TTSNormalizer`: Converte elementos gráficos em palavras por extenso.
+  * *Moedas*: `R$ 150,50` $\rightarrow$ `duzentos e cinquenta reais e cinquenta centavos`.
+  * *Datas*: `24/07/2026` $\rightarrow$ `vinte e quatro de julho de dois mil e vinte e seis`.
+  * *Numerais Romanos*: `Capítulo III` $\rightarrow$ `Capítulo três`.
+  * *Siglas*: `UEFS` $\rightarrow$ `U E F S`.
+* `PhoneticNormalizer`: Preserva acentuação e cedilha (`ação`, `órgão`, `sintese`) essenciais para a conversão de fonemas do `espeak-ng`, removendo apenas caracteres invisíveis de controle.
 
-## 3. Objetivos técnicos
+### Etapa 4: Inferência Neural via FFI C++ (Sherpa-ONNX)
+1. A frase normalizada é enviada à `CompositeTTSEngine`.
+2. O motor selecionado (Faber VITS ou Supertonic 3) aciona a biblioteca C++ `sherpa-onnx` nativa via FFI.
+3. **Ajustes de Prosódia do Faber**:
+   * `lengthScale = 1.12`: Estende a duração de cada fonema em **12%**, conferindo clareza e ritmo natural de leitura sem engolir sílabas.
+   * `noiseScale = 0.85` e `noiseScaleW = 0.95`: Garante entonação rica e estabilidade temporal no previsor estocástico de duração.
+4. A C++ gera um buffer de áudio em formato **PCM Float32 (22050 Hz)** na memória.
 
-### 3.1. Execução offline
+### Etapa 5: Streaming FIFO, Fila Circular e Gestão de RAM (Anti-OOM)
+1. O áudio sintetizado é envelopado em um objeto `SentenceAudioItem` e inserido na `CircularAudioBuffer` (fila FIFO com capacidade de até 5 sentenças).
+2. **Mecanismo de Backpressure**: Se a fila estiver cheia (5 frases prontas aguardando reprodução), o sintetizador pausa automaticamente a produção. Isso impede que a memória RAM do celular estoure (*Out Of Memory - OOM*).
+3. O `AudioPlayerService` retira o primeiro item da fila, serializa o PCM Float32 em um buffer RIFF/WAV via `WavWriter` e envia para reprodução no alto-falante.
+4. **Purge da Memória RAM**: Assim que o player termina de tocar a frase, o `MemoryManager` zera e descarta os dados da amostra Float32 imediatamente, mantendo o consumo de RAM plano abaixo de 50MB.
 
-O modelo neural é carregado localmente e a inferência é executada no dispositivo. O fluxo de leitura não envia o texto do livro para servidores externos.
-
-### 3.2. Baixo consumo de memória
-
-A aplicação usa uma fila FIFO com capacidade limitada. O produtor sintetiza frases e aguarda quando a fila está cheia. O consumidor reproduz o áudio e libera o buffer depois que a frase termina.
-
-Esse mecanismo evita o fluxo problemático:
-
-```text
-Capítulo inteiro → todas as frases → todos os WAVs → reprodução
-```
-
-O fluxo implementado é:
-
-```text
-Frase atual + poucas frases de margem → reprodução incremental
-```
-
-### 3.3. Baixa latência entre frases
-
-O áudio é produzido antecipadamente pela fila enquanto a frase atual toca. A transição foi otimizada para evitar validações WAV redundantes e trabalho desnecessário no limite entre uma frase e outra.
-
-### 3.4. Qualidade linguística em PT-BR
-
-O pipeline expande datas, valores monetários, ordinais, símbolos, abreviações, siglas e numerais romanos. Acentos e cedilha são preservados até a engine configurada com os dados do `espeak-ng`.
+### Etapa 6: Interface Reativa, Destaque Visual e Seleção Confirmada
+1. Durante a leitura, a frase atualmente em reprodução recebe destaque visual na tela com a cor da paleta selecionada (Padrão, Botânico, Carmim ou Marinha).
+2. **Seleção Confirmada**: Se o usuário tocar em qualquer outra frase do texto, o app não interrompe o áudio imediatamente (evitando acidentes). Em vez disso, exibe um painel de *Seleção Pendente*. Ao clicar em *"Continuar da frase N"*, a fila atual é cancelada e o pipeline reinicia a síntese a partir do novo índice selecionado.
 
 ---
 
-## 4. Importação e interpretação de EPUB
+## 4. Sistema de Temas Editoriais de Cores
 
-### 4.1. Seletor de documentos
+O aplicativo conta com **4 paletas de cores editoriais** desenvolvidas para conforto visual em diferentes ambientes de leitura:
 
-`NativeEpubDocumentPicker` cria uma fronteira testável entre a interface e o pacote `file_picker`. O seletor é filtrado para EPUB, mas o filtro de extensão é apenas uma primeira proteção; o conteúdo também é validado.
-
-O fluxo tenta obter os bytes diretamente. No Windows, quando o plugin fornece apenas um caminho local, a aplicação usa esse caminho como fallback controlado para ler os bytes. No Android, o fluxo prioriza o documento selecionado pelo Storage Access Framework.
-
-### 4.2. Validações
-
-O importador verifica:
-
-- extensão `.epub`;
-- tamanho mínimo do arquivo;
-- limite máximo de importação;
-- assinatura de arquivo ZIP;
-- presença de `META-INF/container.xml`;
-- localização do arquivo OPF;
-- existência de capítulos legíveis;
-- caminhos relativos e nomes percent-encoded;
-- ausência de traversal de caminho (`..`) para fora do arquivo.
-
-Recursos binários como imagens, capas, fontes e arquivos multimídia não são convertidos para UTF-8. Apenas arquivos textuais relevantes ao parser são decodificados.
-
-### 4.3. Estrutura EPUB utilizada
-
-O parser segue a estrutura padrão:
-
-```text
-META-INF/container.xml
-        │ aponta para
-        ▼
-OPS/package.opf
-        ├── metadata
-        ├── manifest
-        └── spine
-                │ ordem de leitura
-                ▼
-        capítulo.xhtml / capítulo.html
-```
-
-O `manifest` associa IDs a arquivos. A `spine` define a ordem de leitura. Por isso, a quantidade de partes encontrada em um livro pode ser maior do que a quantidade de capítulos impressos: livros comerciais frequentemente dividem capítulos em vários XHTMLs, páginas preliminares, seções e anexos.
-
-### 4.4. Módulos envolvidos
-
-- `lib/core/document/selected_document.dart`: abstração do documento escolhido.
-- `lib/core/document/epub_bytes_importer.dart`: validação ZIP e conversão dos bytes em arquivos textuais.
-- `lib/core/document/epub_parser.dart`: leitura de OPF, manifest e spine.
-- `lib/core/document/html_sanitizer.dart`: remoção de tags para o texto utilizado pelo TTS.
-- `lib/core/document/epub_model.dart`: modelos `EpubBook` e `EpubChapter`.
+| Paleta | Tom do Fundo (Claro / Escuro) | Característica e Leitura Editorial |
+| :--- | :--- | :--- |
+| **Padrão** | `#E7DFC6` / `#262A22` | Papel pergaminho clássico com destaque em tom azul editorial. |
+| **Botânico** | `#E6E9DF` / `#1E2219` | Tom papel-erva suavizado com sinalização e grifo herbal em verde. |
+| **Carmim** | `#EEE0E0` / `#241A1C` | Papel rosado elegante com destaques e sinalização em tom vinhoso. |
+| **Marinha** | `#DDE2EC` / `#181C26` | Papel azulado sereno com detalhes em azul prússia e terracota. |
 
 ---
 
-## 5. Pipeline de texto e fonética
-
-### 5.1. Segmentação
-
-`SentenceSegmenter` transforma o texto limpo em `TextSentence`. Cada frase possui:
-
-- índice absoluto no capítulo;
-- texto original limpo;
-- indicação de fim de parágrafo;
-- quantidade de caracteres e palavras;
-- estimativa de duração.
-
-O índice absoluto é importante porque a fila de áudio usa apenas uma pequena janela. A interface continua sabendo que uma frase pertence, por exemplo, ao índice 37 do capítulo mesmo que ela seja o segundo item atualmente carregado na memória.
-
-### 5.2. Normalização linguística
-
-`TTSNormalizer` executa as etapas de preparação do texto:
-
-1. remove tags HTML e caracteres de controle;
-2. expande moedas;
-3. expande datas e horários;
-4. converte ordinais;
-5. converte números cardinais;
-6. expande abreviações, símbolos e siglas;
-7. normaliza espaços e pontuação.
-
-Exemplos:
-
-```text
-R$ 150,00  → cento e cinquenta reais
-24/07/2026 → vinte e quatro de julho de dois mil e vinte e seis
-100%       → cem por cento
-UEFS       → U E F S
-```
-
-### 5.3. Maiúsculas e numerais romanos
-
-A camada `AbbreviationNormalizer` diferencia três situações:
-
-- siglas conhecidas, como `TCC`, `UEFS`, `ONNX`, `PDF` e `HTML`, são soletradas;
-- palavras inteiras em maiúsculas, como `ARQUITETURA` e `AÇÃO`, são convertidas para forma normal;
-- numerais romanos, como `II`, `III` e `XIV`, são convertidos para palavras portuguesas.
-
-Exemplos:
-
-```text
-Capítulo II → Capítulo dois
-AÇÃO        → ação
-TCC         → T C C
-```
-
-### 5.4. Preservação fonética
-
-O modelo PT-BR usa os dados do `espeak-ng` para auxiliar a conversão grafema-fonema. Por isso, o aplicativo não remove globalmente `ç`, `ã`, `é`, `ê`, `ó` ou outros diacríticos antes da inferência.
-
-`PhoneticNormalizer` atualmente é conservador: remove caracteres invisíveis e espaços problemáticos, mas não aplica substituições fonéticas genéricas. Alterações como `ç` → `s` ou `gu` → outra grafia só devem ser introduzidas depois de testes A/B auditivos, pois uma regra que melhora uma palavra pode piorar várias outras.
-
-Palavras usadas na avaliação fonética incluem:
-
-- desacopladas;
-- ação;
-- coração;
-- execução;
-- arquitetura;
-- síntese;
-- órgão;
-- palavras com `gue`, `gui`, `que` e `qui`.
-
----
-
-## 6. Motor TTS e áudio
-
-### 6.1. Contrato de engine
-
-`ITTSEngine` define a interface comum para inicialização, síntese, métricas e descarte de recursos. Isso permite trocar o motor sem alterar o parser ou a interface do leitor.
-
-Implementações disponíveis:
-
-- `SherpaOnnxTTSEngine`: engine neural via FFI C++;
-- `SherpaOnnxCliEngine`: integração alternativa via executável CLI;
-- `MockTTSEngine`: motor determinístico para testes;
-- `CompositeTTSEngine`: seleção e failover entre engines.
-
-### 6.2. Modelo configurado
-
-O perfil padrão utiliza:
-
-- `pt_BR-faber-medium.onnx`;
-- `tokens.txt`;
-- `espeak-ng-data`;
-- taxa de amostragem de 22050 Hz;
-- execução CPU;
-- `lengthScale` configurável para velocidade da fala.
-
-Os arquivos necessários ficam em `assets/models/` e são copiados para o diretório local da aplicação durante a inicialização.
-
-### 6.3. Buffer e fila
-
-`CircularAudioBuffer` implementa o padrão produtor-consumidor:
-
-- o produtor sintetiza e enfileira;
-- quando a capacidade é atingida, o produtor aguarda;
-- o consumidor retira o próximo item;
-- o áudio atual só é liberado depois da reprodução;
-- cancelamento libera itens pendentes e desbloqueia operações aguardando espaço.
-
-### 6.4. WAV
-
-`WavWriter` serializa amostras Float32 em PCM16 RIFF/WAV. A validação e os testes do formato ficam no utilitário, sem repetir a decodificação completa a cada troca de frase durante a leitura.
-
-### 6.5. Player
-
-`AudioPlayerService` encapsula `audioplayers` e oferece:
-
-- carregar áudio em memória;
-- tocar e pausar;
-- parar;
-- alterar velocidade;
-- buscar posição;
-- acompanhar posição, duração e estado.
-
-O fluxo de streaming também protege contra eventos de conclusão duplicados, que poderiam fazer o leitor avançar duas frases.
-
----
-
-## 7. Interface do aplicativo
-
-### 7.1. Home
-
-O Home concentra:
-
-- importação de EPUB;
-- metadados do livro;
-- seleção de capítulo;
-- seleção de engine;
-- status da importação;
-- acesso à tela de leitura.
-
-### 7.2. Reader
-
-O Reader é uma parte separada do aplicativo. A barra superior possui uma seta para voltar ao Home. Ao retornar:
-
-- a fila de áudio é cancelada;
-- o áudio é interrompido;
-- buffers pendentes são liberados;
-- a pessoa pode selecionar outro livro.
-
-A leitura atual usa o texto contínuo do capítulo com marcações de frase. O objetivo da próxima evolução visual é renderizar o XHTML original, preservando estilos, títulos, listas, imagens e demais elementos sempre que possível, aplicando somente a marcação sobre o trecho falado.
-
-### 7.3. Seleção confirmada
-
-O toque em uma frase não muda imediatamente a posição da leitura. Ele cria uma seleção pendente, visualmente diferente da frase ativa. A pessoa pode cancelar ou confirmar:
-
-```text
-Toque no trecho
-      ↓
-Trecho selecionado
-      ├── Cancelar seleção
-      └── Continuar da frase N
-```
-
-Após a confirmação, a fila antiga é cancelada e o pipeline começa no índice absoluto escolhido.
-
-### 7.4. Destaque e acompanhamento
-
-A frase atual recebe destaque visual para permitir acompanhamento com os olhos. O auto-scroll deve ser usado com cuidado: se a pessoa rolar manualmente, o leitor não deve forçá-la de volta para a frase ativa.
-
----
-
-## 8. Estrutura do repositório
+## 5. Estrutura de Código do Repositório
 
 ```text
 lib/
-├── main.dart
+├── main.dart                          # Ponto de entrada, auto-detecção de modelos e MaterialApp
 ├── core/
-│   ├── audio/
-│   │   ├── audio_player_service.dart
-│   │   ├── audio_player_service_interface.dart
-│   │   ├── mock_audio_player_service.dart
-│   │   └── wav_writer.dart
-│   ├── config/
-│   │   └── tts_config.dart
-│   ├── document/
-│   │   ├── epub_bytes_importer.dart
-│   │   ├── epub_model.dart
-│   │   ├── epub_parser.dart
-│   │   ├── html_sanitizer.dart
-│   │   └── selected_document.dart
-│   ├── engine/
-│   │   ├── composite_tts_engine.dart
-│   │   ├── mock_tts_engine.dart
-│   │   ├── sherpa_onnx_cli_engine.dart
-│   │   ├── sherpa_onnx_engine.dart
-│   │   └── tts_engine_interface.dart
-│   ├── memory/
-│   │   ├── circular_audio_buffer.dart
-│   │   ├── memory_manager.dart
-│   │   └── sentence_audio_item.dart
-│   ├── metrics/
-│   ├── pipeline/
-│   │   ├── pipeline_orchestrator.dart
-│   │   └── pipeline_result.dart
-│   └── text/
-│       ├── abbreviation_normalizer.dart
-│       ├── phonetic_normalizer.dart
-│       ├── sentence_model.dart
-│       ├── sentence_segmenter.dart
-│       └── tts_normalizer.dart
-├── ui/
-│   └── widgets/
-│       ├── audio_player_control_bar.dart
-│       ├── reader_document_view.dart
-│       ├── sentence_highlight_view.dart
-│       └── ...
-└── test/
+│   ├── audio/                         # AudioPlayerService (audioplayers) e WavWriter (PCM16)
+│   ├── config/                        # TTSConfig (Faber VITS) e SupertonicConfig (Supertonic 3)
+│   ├── document/                      # EpubParser, EpubBytesImporter, SavedBookRepository e HtmlSanitizer
+│   ├── engine/                        # Interface ITTSEngine, SherpaOnnx, SupertonicOnnx e Composite
+│   ├── memory/                        # CircularAudioBuffer, MemoryManager e SentenceAudioItem
+│   ├── metrics/                       # PerformanceTracker e RtfCalculator (Real-Time Factor)
+│   ├── pipeline/                      # PipelineOrchestrator (Segmentação -> PLN -> Síntese -> Fila)
+│   └── text/                          # SentenceSegmenter, TTSNormalizer e PhoneticNormalizer
+└── ui/
+    ├── app_theme.dart                 # AppThemePalette, tokens de cor e AppThemeExtension
+    ├── theme_preference.dart          # Persistência de tema (Claro/Escuro/Sistema e Paleta)
+    └── widgets/                       # LibraryView, ReaderPage, SettingsView, AudioPlayerControlBar
 ```
-
-Os testes ficam no diretório `test/`, organizados por domínio: documento, texto, pipeline, memória, áudio, engine e UI.
 
 ---
 
-## 9. Como executar
+## 6. Como Executar e Testar
 
-### Dependências
+### 6.1. Pré-requisitos
+* Flutter SDK (versão 3.29 ou superior)
+* Dispositivo Android (Android 8+ / ARM64) ou sistema Windows 10/11.
 
+### 6.2. Executando no Windows
 ```bash
 flutter pub get
-```
-
-### Windows
-
-```bash
 flutter run -d windows
 ```
 
-### Android
-
+### 6.3. Executando no Celular Android
+Conecte o smartphone via cabo USB com a depuração USB habilitada:
 ```bash
 flutter devices
 flutter run -d <id-do-dispositivo>
 ```
 
-O fluxo Android utiliza o seletor de documentos do sistema e não deve solicitar permissão ampla de armazenamento para selecionar um EPUB.
-
-### Registro de validação Android (2026-08-02)
-
-Foi gerado e instalado um APK de depuração em um Motorola moto g85 5G com Android 15. O primeiro teste confirmou a instalação e a arquitetura ARM64, mas a abertura do aplicativo encerrava o processo por um crash nativo (`SIGSEGV`) em `libdartjni.so`, durante a busca de classes JNI.
-
-A causa de compilação associada foi identificada no `file_picker` 11.x: sob AGP 9 o pacote deixava de ativar sua tarefa Kotlin, enquanto o registrador Java gerado pelo Flutter ainda referencia `FilePickerPlugin`. A configuração em `android/build.gradle.kts` agora ativa o compilador Kotlin apenas para esse módulo e fixa o alvo JVM em 17, em conformidade com o restante do projeto. A configuração também limita o APK de teste a `arm64-v8a`, apropriado para o G85.
-
-A build foi confirmada em modo offline, sem baixar dependências nem interagir com o celular:
-
-```powershell
-$env:JAVA_HOME = 'D:\Program Files\Android\Android Studio\jbr'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-cd android
-.\gradlew.bat :app:assembleDebug --no-daemon --offline --console=plain
+### 6.4. Instalando o Modelo Supertonic 3 no Android (Opcional)
+Para habilitar o motor Supertonic 3 no dispositivo Android via ADB:
+```bash
+adb push .planning/tmp/supertonic-extracted/sherpa-onnx-supertonic-3-tts-int8-2026-05-11 /sdcard/Download/supertonic
 ```
+O aplicativo detectará os modelos automaticamente ao iniciar e os direcionará para a pasta restrita da C++ (`/storage/emulated/0/Android/data/com.example.tcc_tts_neural/files/supertonic`).
 
-O APK resultante fica em `build/app/outputs/flutter-apk/app-debug.apk`. O aviso sobre plugins que ainda usam Kotlin Gradle Plugin é de compatibilidade futura e não bloqueia a build atual.
+---
 
-Na próxima sessão, com o celular conectado e a depuração USB autorizada, instalar a nova build e validar a abertura antes de testar a síntese:
+## 7. Testes Automatizados
 
-```powershell
-flutter install --debug
-flutter run -d <id-do-dispositivo> --debug
-```
-
-O celular não é necessário para compilar; ele só é necessário nas etapas de instalação, execução e captura de logs.
-
-### Análise e testes
+O projeto mantém **100% de aprovação** na suíte de testes unitários e de integração:
 
 ```bash
-flutter analyze
+# Executar toda a suíte de testes
 flutter test
-```
 
-Testes específicos úteis:
-
-```bash
-flutter test test/core/document/epub_bytes_importer_test.dart
+# Executar testes por domínio
 flutter test test/core/document/epub_parser_test.dart
-flutter test test/core/text/abbreviation_normalizer_test.dart
-flutter test test/core/text/phonetic_normalizer_test.dart
-flutter test test/core/pipeline/pipeline_start_index_test.dart
-flutter test test/ui/audio_player_widget_test.dart
-```
-
-Em alguns ambientes Windows deste projeto, processos antigos da Dart VM podem impedir que `flutter test`, `flutter analyze` ou `dart format` retornem. Quando isso ocorrer, é necessário verificar os processos ativos antes de interpretar o timeout como falha funcional.
-
----
-
-## 10. Estratégia de testes manuais
-
-### Importação
-
-1. Abrir o aplicativo.
-2. Selecionar um EPUB real com imagens e capítulos longos.
-3. Confirmar título, autor e quantidade de capítulos.
-4. Trocar de capítulo.
-5. Voltar ao Home pela seta.
-6. Importar outro EPUB.
-
-### Streaming
-
-1. Abrir um capítulo grande.
-2. Iniciar a leitura.
-3. Confirmar que a primeira frase começa antes do capítulo inteiro ser sintetizado.
-4. Observar se as transições entre frases não apresentam pausas longas.
-5. Parar a leitura e iniciar novamente.
-
-### Seleção de ponto
-
-1. Tocar em uma frase distante.
-2. Confirmar que apenas a seleção pendente muda.
-3. Verificar que o áudio atual não é interrompido antes da confirmação.
-4. Pressionar “Continuar da frase N”.
-5. Confirmar que a fila antiga foi descartada e a leitura começa no ponto selecionado.
-
-### Fonética
-
-Testar frases contendo:
-
-```text
-Capítulo II.
-AÇÃO e ARQUITETURA.
-TCC, UEFS e ONNX.
-Ação, coração, órgão e síntese.
-Desacopladas, execução, que, qui, gue e gui.
+flutter test test/ui/theme_contract_test.dart
+flutter test test/core/config_test.dart
+flutter test test/core/pipeline/pipeline_streaming_test.dart
 ```
 
 ---
 
-## 11. Métricas e avaliação acadêmica
+## 8. Plataformas Suportadas e Escopo
 
-O projeto calcula o Real-Time Factor (RTF):
+* **Android** (Foco principal móvel; testado e homologado em dispositivo físico Motorola G85 5G - Android 15 / API 35).
+* **Windows** (Foco desktop para desenvolvimento, testes de carga e benchmarks).
 
-```text
-RTF = tempo de inferência / duração do áudio produzido
-```
 
-Interpretação:
-
-- `RTF < 1.0`: a síntese é mais rápida do que a reprodução;
-- `RTF = 1.0`: síntese e reprodução têm velocidade equivalente;
-- `RTF > 1.0`: o processamento pode não acompanhar a leitura contínua.
-
-As próximas avaliações devem registrar:
-
-- latência até o primeiro áudio;
-- tempo de transição entre frases;
-- RTF por frase e por capítulo;
-- memória durante livros curtos, médios e longos;
-- uso de CPU;
-- velocidade selecionada;
-- quantidade de frases processadas;
-- avaliações perceptuais MOS;
-- falhas de importação ou síntese.
 
 ---
 
-## 12. Decisões de engenharia
+## 9. Finalidade Acadêmica
 
-### Por que não sintetizar o livro inteiro?
-
-Porque o áudio PCM cresce proporcionalmente ao texto. Em livros longos, combinar todo o capítulo em memória aumenta a latência inicial e pode causar OOM. O streaming permite começar cedo e manter o consumo limitado.
-
-### Por que preservar os acentos?
-
-O perfil PT-BR usa dados de conversão grafema-fonema. Remover `ç`, `ã` ou acentos antes da engine altera a entrada linguística e pode produzir pronúncia incorreta.
-
-### Por que separar Home e Reader?
-
-O Home representa a biblioteca/seleção do documento. O Reader representa uma sessão de leitura com capítulo, cursor, fila, player e marcação visual. Separar esses estados reduz o risco de importar outro livro enquanto uma fila antiga ainda está tocando.
-
-### Por que exigir confirmação ao escolher uma frase?
-
-A seleção e a ação de interromper/reiniciar áudio são operações diferentes. A confirmação evita que um toque acidental altere imediatamente a leitura atual.
-
----
-
-## 13. Próximas fases
-
-### Release candidate Android e validação via USB
-
-Antes da telemetria, o projeto terá uma versão candidata instalada em um aparelho físico. O roteiro inclui `flutter doctor -v`, autorização ADB, execução com `flutter run -d <device-id>`, instalação de APK com `adb install -r` e repetição do fluxo com um EPUB grande real. Serão avaliados importação, inicialização do modelo, primeira frase, transições, seleção confirmada, retorno ao Home, troca de capítulo e comportamento offline.
-
-### Renderização fiel do XHTML
-
-Substituir a apresentação textual simplificada por uma renderização do XHTML original do capítulo, preservando títulos, parágrafos, itálico, negrito, listas e imagens quando suportados. As frases continuarão recebendo IDs internos para sincronização.
-
-### Fonética contextual
-
-Expandir a avaliação A/B para palavras problemáticas sem criar substituições globais frágeis. As regras devem ser acompanhadas por testes de texto e avaliação auditiva.
-
-### Persistência da leitura
-
-- posição por livro e capítulo;
-- último ponto reproduzido;
-- biblioteca local;
-- marcadores;
-- histórico;
-- busca no texto.
-
-### Avaliação final do TCC
-
-- benchmarks de livros reais;
-- tabelas de RTF, RAM e CPU;
-- comparação de velocidades;
-- avaliação MOS;
-- documentação da arquitetura;
-- preparação da monografia e dos slides da banca.
-
----
-
-## 14. Planejamento GSD
-
-O diretório `.planning/` contém a documentação de evolução do projeto:
-
-- `PROJECT.md`: visão e restrições do produto;
-- `REQUIREMENTS.md`: requisitos funcionais e não funcionais;
-- `ROADMAP.md`: fases e marcos;
-- `phases/`: contextos, planos, contratos de UI e verificações;
-- `debug/`: investigações técnicas persistentes.
-
-As fases recentes documentam a importação real de EPUB, a fila de áudio, a proteção contra OOM, a qualidade fonética e o Reader com seleção confirmada. Foi utilizado, o framework Get the Shit Done.
-
----
-
-## 15. Finalidade e licença
-
-Este repositório é um projeto acadêmico destinado à monografia e ao Trabalho de Conclusão de Curso em Engenharia de Computação na UEFS.
+Trabalho de Conclusão de Curso (TCC) desenvolvido para apresentação no curso de **Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS)**.

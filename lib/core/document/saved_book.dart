@@ -6,6 +6,7 @@ class SavedBookRecord {
   final String title;
   final String author;
   final String contentHash;
+  final String? coverPath;
   final int totalChapters;
   final int chapterIndex;
   final int sentenceIndex;
@@ -19,6 +20,7 @@ class SavedBookRecord {
     required this.title,
     required this.author,
     this.contentHash = '',
+    this.coverPath,
     required this.totalChapters,
     required this.chapterIndex,
     required this.sentenceIndex,
@@ -35,6 +37,7 @@ class SavedBookRecord {
     int? completedSentenceIndex,
     double? progress,
     DateTime? updatedAt,
+    String? coverPath,
   }) {
     return SavedBookRecord(
       id: id,
@@ -42,6 +45,7 @@ class SavedBookRecord {
       title: title,
       author: author,
       contentHash: contentHash,
+      coverPath: coverPath ?? this.coverPath,
       totalChapters: totalChapters,
       chapterIndex: chapterIndex ?? this.chapterIndex,
       sentenceIndex: sentenceIndex ?? this.sentenceIndex,
@@ -52,12 +56,13 @@ class SavedBookRecord {
     );
   }
 
-  Map<String, Object> toJson() => {
+  Map<String, Object?> toJson() => {
         'id': id,
         'fileName': fileName,
         'title': title,
         'author': author,
         'contentHash': contentHash,
+        'coverPath': coverPath,
         'totalChapters': totalChapters,
         'chapterIndex': chapterIndex,
         'sentenceIndex': sentenceIndex,
@@ -73,6 +78,7 @@ class SavedBookRecord {
       title: json['title'] as String? ?? 'Livro sem título',
       author: json['author'] as String? ?? 'Autor desconhecido',
       contentHash: json['contentHash'] as String? ?? '',
+      coverPath: json['coverPath'] as String?,
       totalChapters: (json['totalChapters'] as num?)?.toInt() ?? 0,
       chapterIndex: (json['chapterIndex'] as num?)?.toInt() ?? 0,
       sentenceIndex: (json['sentenceIndex'] as num?)?.toInt() ?? 0,

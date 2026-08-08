@@ -26,6 +26,25 @@ class AudioBuffer {
 
   /// Retorna a duração em milissegundos.
   double get durationInMilliseconds => durationInSeconds * 1000.0;
+
+  /// Trim trailing near-silent samples, leaving a natural human breath pause of [padMs] (default 250ms).
+  AudioBuffer trimSilence({double threshold = 0.005, int padMs = 250}) {
+    if (samples.isEmpty) return this;
+    int lastIndex = samples.length - 1;
+    while (lastIndex >= 0 && samples[lastIndex].abs() < threshold) {
+      lastIndex--;
+    }
+    if (lastIndex < 0) return this;
+    final nonSilentCount = lastIndex + 1;
+    final padSamples = (sampleRate * (padMs / 1000.0) * numChannels).round();
+    final targetCount = (nonSilentCount + padSamples).clamp(0, samples.length);
+    if (targetCount == samples.length) return this;
+    return AudioBuffer(
+      samples: Float32List.sublistView(samples, 0, targetCount),
+      sampleRate: sampleRate,
+      numChannels: numChannels,
+    );
+  }
 }
 
 /// Utilitário puramente funcional para serialização de áudio PCM no formato WAV (RIFF).

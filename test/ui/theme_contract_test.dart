@@ -86,6 +86,35 @@ void main() {
       }
     });
 
+    test('all 4 theme palettes construct valid light and dark ThemeData with extensions', () {
+      for (final palette in AppThemePalette.values) {
+        final lightTheme = AppTheme.light(palette: palette);
+        final darkTheme = AppTheme.dark(palette: palette);
+
+        expect(lightTheme.brightness, Brightness.light);
+        expect(darkTheme.brightness, Brightness.dark);
+
+        final lightExt = lightTheme.extension<AppThemeExtension>();
+        final darkExt = darkTheme.extension<AppThemeExtension>();
+
+        expect(lightExt, isNotNull, reason: 'Light ThemeExtension missing for ${palette.label}');
+        expect(darkExt, isNotNull, reason: 'Dark ThemeExtension missing for ${palette.label}');
+
+        final lightTokens = AppColors.getLightTokens(palette);
+        final darkTokens = AppColors.getDarkTokens(palette);
+
+        expect(lightExt!.grifo, lightTokens.grifo);
+        expect(lightExt.moss, lightTokens.moss);
+        expect(lightExt.card, lightTokens.card);
+        expect(lightExt.cardElevated, lightTokens.cardElevated);
+
+        expect(darkExt!.grifo, darkTokens.grifo);
+        expect(darkExt.moss, darkTokens.moss);
+        expect(darkExt.card, darkTokens.card);
+        expect(darkExt.cardElevated, darkTokens.cardElevated);
+      }
+    });
+
     test('production code contains zero web/html/webview references', () {
       final libDir = Directory('lib');
       final files = libDir.listSync(recursive: true).whereType<File>();
@@ -115,29 +144,47 @@ void main() {
       }
     });
 
-    test('defaults to ThemeMode.system when file does not exist', () async {
+    test('defaults to ThemeMode.system and AppThemePalette.padrao when file does not exist', () async {
       final repo = ThemePreferenceRepository(overrideFile: tempFile);
-      final mode = await repo.load();
-      expect(mode, ThemeMode.system);
+      final state = await repo.loadState();
+      expect(state.mode, ThemeMode.system);
+      expect(state.palette, AppThemePalette.padrao);
     });
 
-    test('saves and reloads ThemeMode correctly', () async {
+    test('saves and reloads ThemeMode and AppThemePalette correctly', () async {
       final repo = ThemePreferenceRepository(overrideFile: tempFile);
-      await repo.save(ThemeMode.dark);
-      expect(await repo.load(), ThemeMode.dark);
 
-      await repo.save(ThemeMode.light);
-      expect(await repo.load(), ThemeMode.light);
+      await repo.saveState(const ThemePreferenceState(
+        mode: ThemeMode.dark,
+        palette: AppThemePalette.botanico,
+      ));
+      var loaded = await repo.loadState();
+      expect(loaded.mode, ThemeMode.dark);
+      expect(loaded.palette, AppThemePalette.botanico);
 
-      await repo.save(ThemeMode.system);
-      expect(await repo.load(), ThemeMode.system);
+      await repo.saveState(const ThemePreferenceState(
+        mode: ThemeMode.light,
+        palette: AppThemePalette.marinha,
+      ));
+      loaded = await repo.loadState();
+      expect(loaded.mode, ThemeMode.light);
+      expect(loaded.palette, AppThemePalette.marinha);
+
+      await repo.saveState(const ThemePreferenceState(
+        mode: ThemeMode.system,
+        palette: AppThemePalette.arquivo,
+      ));
+      loaded = await repo.loadState();
+      expect(loaded.mode, ThemeMode.system);
+      expect(loaded.palette, AppThemePalette.arquivo);
     });
 
-    test('recovers gracefully to ThemeMode.system on corrupted file', () async {
+    test('recovers gracefully to defaults on corrupted file', () async {
       tempFile.writeAsStringSync('{ corrupted json: true ///');
       final repo = ThemePreferenceRepository(overrideFile: tempFile);
-      final mode = await repo.load();
-      expect(mode, ThemeMode.system);
+      final state = await repo.loadState();
+      expect(state.mode, ThemeMode.system);
+      expect(state.palette, AppThemePalette.padrao);
     });
   });
 }

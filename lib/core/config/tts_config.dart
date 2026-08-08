@@ -59,9 +59,9 @@ class TTSConfig {
       lexiconPath: null,
       espeakDataPath: espeakDataPath,
       sampleRate: 22050,
-      numThreads: 2,
-      noiseScale: 0.667,
-      lengthScale: 1.25,
+      numThreads: 4,
+      noiseScale: 0.85,
+      lengthScale: 1.12,
     );
   }
 

@@ -26,8 +26,8 @@ class SupertonicConfig {
     this.language = 'pt',
     this.speakerId = 0,
     this.speed = 1,
-    this.numSteps = 8,
-    this.numThreads = 2,
+    this.numSteps = 6,
+    this.numThreads = 4,
   });
 
   String pathFor(String fileName) =>

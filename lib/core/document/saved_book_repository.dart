@@ -101,12 +101,22 @@ class SavedBookRepository {
     }
 
     final id = await _nextAvailableId(directory, contentHash);
+    String? coverPath;
+    if (book.coverImageBytes != null && book.coverImageBytes!.isNotEmpty) {
+      final coverFile = File(p.join(directory.path, '$id.cover'));
+      try {
+        await coverFile.writeAsBytes(book.coverImageBytes!, flush: true);
+        coverPath = coverFile.path;
+      } catch (_) {}
+    }
+
     final record = SavedBookRecord(
       id: id,
       fileName: fileName,
       title: book.title,
       author: book.author,
       contentHash: contentHash,
+      coverPath: coverPath,
       totalChapters: book.totalChapters,
       chapterIndex: 0,
       sentenceIndex: 0,
@@ -119,6 +129,9 @@ class SavedBookRepository {
       await _writeMetadataTransaction(directory, record);
     } on Object {
       if (await epubFile.exists()) await epubFile.delete();
+      if (coverPath != null && await File(coverPath).exists()) {
+        await File(coverPath).delete();
+      }
       await _removeTransactionArtifacts(directory, record.id);
       rethrow;
     }
@@ -138,7 +151,8 @@ class SavedBookRepository {
     final directory = await _booksDirectory();
     final files = [
       File(_epubPath(directory, id)),
-      File(_jsonPath(directory, id))
+      File(_jsonPath(directory, id)),
+      File(p.join(directory.path, '$id.cover')),
     ];
     for (final file in files) {
       if (await file.exists()) await file.delete();

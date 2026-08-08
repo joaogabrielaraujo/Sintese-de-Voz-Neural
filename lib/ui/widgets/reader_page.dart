@@ -22,6 +22,7 @@ class ReaderPage extends StatelessWidget {
   final Duration currentPosition;
   final Duration totalDuration;
   final double currentSpeed;
+  final double maxSpeed;
   final VoidCallback onBack;
   final ValueChanged<EpubChapter> onChapterChanged;
   final ValueChanged<int> onSentenceSelected;
@@ -46,6 +47,7 @@ class ReaderPage extends StatelessWidget {
     required this.currentPosition,
     required this.totalDuration,
     required this.currentSpeed,
+    this.maxSpeed = 1.5,
     required this.onBack,
     required this.onChapterChanged,
     required this.onSentenceSelected,
@@ -144,6 +146,7 @@ class ReaderPage extends StatelessWidget {
                 currentPosition: currentPosition,
                 totalDuration: totalDuration,
                 currentSpeed: currentSpeed,
+                maxSpeed: maxSpeed,
                 activeSentence: sentences.isEmpty
                     ? 0
                     : activeIndex.clamp(0, sentences.length - 1).toInt() + 1,
@@ -318,6 +321,7 @@ class _PlayerPane extends StatelessWidget {
   final Duration currentPosition;
   final Duration totalDuration;
   final double currentSpeed;
+  final double maxSpeed;
   final int activeSentence;
   final int sentenceCount;
   final String synthesisStatus;
@@ -335,6 +339,7 @@ class _PlayerPane extends StatelessWidget {
     required this.currentPosition,
     required this.totalDuration,
     required this.currentSpeed,
+    this.maxSpeed = 1.5,
     required this.activeSentence,
     required this.sentenceCount,
     required this.synthesisStatus,
@@ -411,6 +416,7 @@ class _PlayerPane extends StatelessWidget {
             currentPosition: currentPosition,
             totalDuration: totalDuration,
             currentSpeed: currentSpeed,
+            maxSpeed: maxSpeed,
             onPlayPausePressed: onPlayPause,
             onStopPressed: onStop,
             onSeekChanged: onSeek,

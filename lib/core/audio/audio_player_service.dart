@@ -77,19 +77,23 @@ class AudioPlayerService implements IAudioPlayerService {
 
   @override
   Future<void> loadWavBytes(Uint8List bytes) async {
-    // setSource substitui a fonte atual e interrompe a reprodução anterior.
-    // Evitamos stop + decodeWav aqui: o WAV acabou de ser gerado por
-    // WavWriter e validá-lo novamente no limite entre frases adicionava uma
-    // pausa fixa perceptível durante a leitura contínua.
     await _player.setSource(BytesSource(bytes));
-    await _player.setPlaybackRate(_currentSpeed);
+    try {
+      await _player.setPlaybackRate(_currentSpeed);
+    } catch (_) {
+      // Ignora falhas de playbackRate em fontes de memória em plataformas desktop
+    }
     _updateState(TTSAudioState.stopped);
   }
 
   @override
   Future<void> loadWavFile(String path) async {
     await _player.setSource(DeviceFileSource(path));
-    await _player.setPlaybackRate(_currentSpeed);
+    try {
+      await _player.setPlaybackRate(_currentSpeed);
+    } catch (_) {
+      // Ignora falhas de playbackRate em fontes de arquivo
+    }
     _updateState(TTSAudioState.stopped);
   }
 
@@ -121,7 +125,11 @@ class AudioPlayerService implements IAudioPlayerService {
   @override
   Future<void> setSpeed(double speed) async {
     _currentSpeed = speed;
-    await _player.setPlaybackRate(speed);
+    try {
+      await _player.setPlaybackRate(speed);
+    } catch (_) {
+      // Ignora falhas de ajuste dinâmico no driver de áudio nativo
+    }
   }
 
   @override

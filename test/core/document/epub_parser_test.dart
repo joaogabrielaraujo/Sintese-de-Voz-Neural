@@ -111,5 +111,115 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('fatia arquivo XHTML unico em multiplas secoes baseadas em ancoras #id do toc.ncx', () {
+      final book = EpubParser.parseArchive({
+        'META-INF/container.xml': '<container><rootfile full-path="OEBPS/content.opf"/></container>',
+        'OEBPS/content.opf': '''
+          <package>
+            <manifest>
+              <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+              <item id="single_doc" href="book.xhtml" media-type="application/xhtml+xml"/>
+            </manifest>
+            <spine toc="ncx">
+              <itemref idref="single_doc"/>
+            </spine>
+          </package>
+        ''',
+        'OEBPS/toc.ncx': '''
+          <ncx>
+            <navMap>
+              <navPoint id="np1">
+                <navLabel><text>Seção 1: Introdução à Síntese</text></navLabel>
+                <content src="book.xhtml#sec1"/>
+              </navPoint>
+              <navPoint id="np2">
+                <navLabel><text>Seção 2: Arquitetura Neural</text></navLabel>
+                <content src="book.xhtml#sec2"/>
+              </navPoint>
+            </navMap>
+          </ncx>
+        ''',
+        'OEBPS/book.xhtml': '''
+          <html>
+            <body>
+              <div id="sec1">
+                <h1>Introdução à Síntese</h1>
+                <p>Conteúdo da introdução sobre síntese de voz neural offline.</p>
+              </div>
+              <div id="sec2">
+                <h1>Arquitetura Neural</h1>
+                <p>Conteúdo detalhado sobre modelos ONNX e VITS.</p>
+              </div>
+            </body>
+          </html>
+        ''',
+      });
+
+      expect(book.totalChapters, equals(2));
+      expect(book.chapters[0].title, equals('Seção 1: Introdução à Síntese'));
+      expect(book.chapters[0].id, equals('OEBPS/book.xhtml#sec1'));
+      expect(book.chapters[0].cleanText, contains('introdução sobre síntese de voz neural'));
+
+      expect(book.chapters[1].title, equals('Seção 2: Arquitetura Neural'));
+      expect(book.chapters[1].id, equals('OEBPS/book.xhtml#sec2'));
+      expect(book.chapters[1].cleanText, contains('modelos ONNX e VITS'));
+    });
+
+    test('fatia HTML extenso com cabeçalhos h1/h2 na ausência de ancoras no sumario', () {
+      final book = EpubParser.parseArchive({
+        'META-INF/container.xml': '<container><rootfile full-path="OEBPS/content.opf"/></container>',
+        'OEBPS/content.opf': '''
+          <package>
+            <manifest>
+              <item id="big_doc" href="large.xhtml" media-type="application/xhtml+xml"/>
+            </manifest>
+            <spine>
+              <itemref idref="big_doc"/>
+            </spine>
+          </package>
+        ''',
+        'OEBPS/large.xhtml': '''
+          <html>
+            <body>
+              <h1>Capítulo A: Fundamentos de Áudio</h1>
+              <p>Texto detalhado da primeira parte do capítulo.</p>
+              <h1>Capítulo B: Processamento Digital</h1>
+              <p>Texto detalhado da segunda parte do capítulo.</p>
+            </body>
+          </html>
+        ''',
+      });
+
+      expect(book.totalChapters, equals(2));
+      expect(book.chapters[0].title, equals('Capítulo A: Fundamentos de Áudio'));
+      expect(book.chapters[1].title, equals('Capítulo B: Processamento Digital'));
+    });
+
+    test('extrai imagem de capa dos metadados OPF e recursos', () {
+      final book = EpubParser.parseArchive({
+        'META-INF/container.xml': '<container><rootfile full-path="OEBPS/content.opf"/></container>',
+        'OEBPS/content.opf': '''
+          <package>
+            <metadata>
+              <meta name="cover" content="cover-img"/>
+            </metadata>
+            <manifest>
+              <item id="cover-img" href="images/cover.jpg" media-type="image/jpeg"/>
+              <item id="doc" href="chap.xhtml" media-type="application/xhtml+xml"/>
+            </manifest>
+            <spine>
+              <itemref idref="doc"/>
+            </spine>
+          </package>
+        ''',
+        'OEBPS/chap.xhtml': '<html><body><p>Conteúdo com capa.</p></body></html>',
+      }, resources: {
+        'OEBPS/images/cover.jpg': Uint8List.fromList([255, 216, 255, 224]),
+      });
+
+      expect(book.coverImageBytes, isNotNull);
+      expect(book.coverImageBytes, equals(Uint8List.fromList([255, 216, 255, 224])));
+    });
   });
 }

@@ -12,6 +12,7 @@ class PhoneticNormalizer {
     return input
         .replaceAll('\u00A0', ' ')
         .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
+        .replaceAll(RegExp(r'([,;:!?])(?=[^\s])'), r'$1 ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }

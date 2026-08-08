@@ -105,11 +105,15 @@ class EpubBook {
   /// Lista imutável de capítulos organizados na ordem de leitura (Spine).
   final List<EpubChapter> chapters;
 
+  /// Imagem da capa extraída dos metadados ou recursos do EPUB (opcional).
+  final Uint8List? coverImageBytes;
+
   const EpubBook({
     required this.title,
     required this.author,
     this.language = 'pt-BR',
     required this.chapters,
+    this.coverImageBytes,
   });
 
   /// Quantidade total de capítulos no livro.

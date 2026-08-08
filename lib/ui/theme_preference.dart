@@ -3,6 +3,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_theme.dart';
+
+/// Estado persistido das preferências de tema do usuário (Modo claro/escuro/sistema + Paleta).
+class ThemePreferenceState {
+  final ThemeMode mode;
+  final AppThemePalette palette;
+
+  const ThemePreferenceState({
+    this.mode = ThemeMode.system,
+    this.palette = AppThemePalette.padrao,
+  });
+}
+
 class ThemePreferenceRepository {
   final File? _overrideFile;
 
@@ -14,33 +27,65 @@ class ThemePreferenceRepository {
     return File('${dir.path}/theme_preference.json');
   }
 
-  Future<ThemeMode> load() async {
+  Future<ThemePreferenceState> loadState() async {
     try {
       final file = await _getFile();
-      if (!await file.exists()) return ThemeMode.system;
+      if (!await file.exists()) return const ThemePreferenceState();
       final content = await file.readAsString();
       final data = jsonDecode(content);
+
       final modeStr = data['themeMode'] as String?;
+      ThemeMode mode;
       switch (modeStr) {
         case 'light':
-          return ThemeMode.light;
+          mode = ThemeMode.light;
+          break;
         case 'dark':
-          return ThemeMode.dark;
+          mode = ThemeMode.dark;
+          break;
         case 'system':
         default:
-          return ThemeMode.system;
+          mode = ThemeMode.system;
+          break;
       }
+
+      final paletteStr = data['themePalette'] as String?;
+      AppThemePalette palette;
+      switch (paletteStr) {
+        case 'botanico':
+          palette = AppThemePalette.botanico;
+          break;
+        case 'carmim':
+        case 'arquivo':
+          palette = AppThemePalette.carmim;
+          break;
+        case 'marinha':
+          palette = AppThemePalette.marinha;
+          break;
+        case 'padrao':
+        default:
+          palette = AppThemePalette.padrao;
+          break;
+      }
+
+      return ThemePreferenceState(mode: mode, palette: palette);
     } catch (_) {
-      return ThemeMode.system;
+      return const ThemePreferenceState();
     }
   }
 
-  Future<void> save(ThemeMode mode) async {
+  Future<ThemeMode> load() async {
+    final state = await loadState();
+    return state.mode;
+  }
+
+  Future<void> saveState(ThemePreferenceState state) async {
     try {
       final file = await _getFile();
       await file.parent.create(recursive: true);
+
       String modeStr;
-      switch (mode) {
+      switch (state.mode) {
         case ThemeMode.light:
           modeStr = 'light';
           break;
@@ -52,9 +97,38 @@ class ThemePreferenceRepository {
           modeStr = 'system';
           break;
       }
-      await file.writeAsString(jsonEncode({'themeMode': modeStr}));
+
+      String paletteStr;
+      switch (state.palette) {
+        case AppThemePalette.botanico:
+          paletteStr = 'botanico';
+          break;
+        case AppThemePalette.arquivo:
+          paletteStr = 'arquivo';
+          break;
+        case AppThemePalette.marinha:
+          paletteStr = 'marinha';
+          break;
+        case AppThemePalette.padrao:
+        default:
+          paletteStr = 'padrao';
+          break;
+      }
+
+      await file.writeAsString(jsonEncode({
+        'themeMode': modeStr,
+        'themePalette': paletteStr,
+      }));
     } catch (_) {
-      // Retain resiliency, do not throw
+      // Retain resiliency
     }
+  }
+
+  Future<void> save(ThemeMode mode, {AppThemePalette? palette}) async {
+    final currentState = await loadState();
+    await saveState(ThemePreferenceState(
+      mode: mode,
+      palette: palette ?? currentState.palette,
+    ));
   }
 }

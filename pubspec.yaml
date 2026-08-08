@@ -26,6 +26,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/icons/
     - assets/models/
     - assets/models/espeak-ng-data/
     - assets/models/espeak-ng-data/lang/

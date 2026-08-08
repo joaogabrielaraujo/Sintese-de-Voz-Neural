@@ -9,6 +9,7 @@ class AudioPlayerControlBar extends StatelessWidget {
   final Duration currentPosition;
   final Duration totalDuration;
   final double currentSpeed;
+  final double maxSpeed;
   final VoidCallback onPlayPausePressed;
   final VoidCallback onStopPressed;
   final ValueChanged<Duration> onSeekChanged;
@@ -22,6 +23,7 @@ class AudioPlayerControlBar extends StatelessWidget {
     required this.currentPosition,
     required this.totalDuration,
     required this.currentSpeed,
+    this.maxSpeed = 1.5,
     required this.onPlayPausePressed,
     required this.onStopPressed,
     required this.onSeekChanged,
@@ -47,6 +49,7 @@ class AudioPlayerControlBar extends StatelessWidget {
     final currentMs = currentPosition.inMilliseconds
         .clamp(0, totalDuration.inMilliseconds)
         .toDouble();
+    final effectiveSpeed = currentSpeed > maxSpeed ? maxSpeed : currentSpeed;
 
     return SafeArea(
       top: false,
@@ -60,62 +63,30 @@ class AudioPlayerControlBar extends StatelessWidget {
           color: ext?.card ?? theme.colorScheme.surface,
           border: Border(top: BorderSide(color: theme.colorScheme.outline)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Text(
-                  _formatDuration(currentPosition),
-                  style: AppTextStyles.statusMono.copyWith(
-                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
-                  ),
-                ),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: theme.colorScheme.primary,
-                      inactiveTrackColor: theme.colorScheme.outline,
-                      thumbColor: theme.colorScheme.primary,
-                      trackHeight: 2,
-                    ),
-                    child: Slider(
-                      value: currentMs,
-                      min: 0,
-                      max: maxMs,
-                      onChanged: (value) => onSeekChanged(
-                        Duration(milliseconds: value.toInt()),
-                      ),
-                    ),
-                  ),
-                ),
-                Text(
-                  _formatDuration(totalDuration),
-                  style: AppTextStyles.statusMono.copyWith(
-                    color: ext?.textWeak ?? theme.colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            LayoutBuilder(
+        child: LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxWidth < 430;
+                final availableSpeeds = const [0.75, 1.0, 1.25, 1.5, 2.0]
+                    .where((s) => s <= maxSpeed)
+                    .toList(growable: false);
                 final speedSelector = DropdownButton<double>(
                   key: const Key('playback-speed-selector'),
-                  value: currentSpeed,
+                  value: availableSpeeds.contains(effectiveSpeed)
+                      ? effectiveSpeed
+                      : availableSpeeds.last,
                   dropdownColor: ext?.card ?? theme.colorScheme.surface,
                   underline: const SizedBox(),
                   style: AppTextStyles.statusMono.copyWith(
                     color: ext?.textSoft ?? theme.colorScheme.onSurface,
                   ),
-                  items: const [
-                    DropdownMenuItem(value: .75, child: Text('0.75x')),
-                    DropdownMenuItem(value: 1, child: Text('1.0x')),
-                    DropdownMenuItem(value: 1.25, child: Text('1.25x')),
-                    DropdownMenuItem(value: 1.5, child: Text('1.5x')),
-                    DropdownMenuItem(value: 2, child: Text('2.0x')),
-                  ],
+                  items: availableSpeeds
+                      .map(
+                        (speed) => DropdownMenuItem(
+                          value: speed,
+                          child: Text('${speed}x'),
+                        ),
+                      )
+                      .toList(growable: false),
                   onChanged: (value) {
                     if (value != null) onSpeedChanged(value);
                   },
@@ -178,8 +149,6 @@ class AudioPlayerControlBar extends StatelessWidget {
                 );
               },
             ),
-          ],
-        ),
       ),
     );
   }

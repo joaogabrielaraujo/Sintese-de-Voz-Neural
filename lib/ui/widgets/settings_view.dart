@@ -11,6 +11,8 @@ class SettingsView extends StatelessWidget {
   final ValueChanged<TTSEngineType> onEngineChanged;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final AppThemePalette themePalette;
+  final ValueChanged<AppThemePalette>? onThemePaletteChanged;
 
   const SettingsView({
     super.key,
@@ -21,6 +23,8 @@ class SettingsView extends StatelessWidget {
     required this.onEngineChanged,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.themePalette = AppThemePalette.padrao,
+    this.onThemePaletteChanged,
   });
 
   @override
@@ -34,13 +38,78 @@ class SettingsView extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.xl),
           children: [
-            Text('Tema do Aplicativo', style: theme.textTheme.titleMedium),
+            Text('Paleta de Cores do Aplicativo', style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Escolha a aparência visual do leitor e da interface.',
+              'Escolha a paleta de cores editorial (Padrão, Botânico, Carmim ou Marinha).',
               style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface),
             ),
             const SizedBox(height: AppSpacing.md),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 520) {
+                  return Wrap(
+                    key: const Key('theme-palette-selector-wrap'),
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: AppThemePalette.values.map((palette) {
+                      final isSelected = themePalette == palette;
+                      return ChoiceChip(
+                        label: Text(palette.label),
+                        selected: isSelected,
+                        selectedColor: theme.colorScheme.primary.withAlpha(40),
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : ext?.textSoft ?? theme.colorScheme.onSurface,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                        onSelected: (selected) {
+                          if (selected && onThemePaletteChanged != null) {
+                            onThemePaletteChanged!(palette);
+                          }
+                        },
+                      );
+                    }).toList(),
+                  );
+                }
+
+                return SegmentedButton<AppThemePalette>(
+                  key: const Key('theme-palette-selector'),
+                  segments: [
+                    ButtonSegment(
+                      value: AppThemePalette.padrao,
+                      label: Text(AppThemePalette.padrao.label),
+                      icon: const Icon(Icons.palette_outlined),
+                    ),
+                    ButtonSegment(
+                      value: AppThemePalette.botanico,
+                      label: Text(AppThemePalette.botanico.label),
+                      icon: const Icon(Icons.eco_outlined),
+                    ),
+                    ButtonSegment(
+                      value: AppThemePalette.carmim,
+                      label: Text(AppThemePalette.carmim.label),
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                    ),
+                    ButtonSegment(
+                      value: AppThemePalette.marinha,
+                      label: Text(AppThemePalette.marinha.label),
+                      icon: const Icon(Icons.water_drop_outlined),
+                    ),
+                  ],
+                  selected: {themePalette},
+                  onSelectionChanged: (selected) {
+                    if (selected.isNotEmpty && onThemePaletteChanged != null) {
+                      onThemePaletteChanged!(selected.first);
+                    }
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Modo de Iluminação', style: theme.textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
             SegmentedButton<ThemeMode>(
               key: const Key('theme-mode-selector'),
               segments: const [

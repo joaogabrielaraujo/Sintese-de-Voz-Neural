@@ -80,7 +80,7 @@ void main() {
         ),
       );
 
-      expect(find.text('OFFLINE'), findsOneWidget);
+      expect(find.text('VozLume'), findsOneWidget);
       expect(find.byKey(const Key('empty-library-state')), findsOneWidget);
       await tester.tap(find.byKey(const Key('import-epub-card')));
       expect(imported, isTrue);

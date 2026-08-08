@@ -107,8 +107,12 @@ class PipelineOrchestrator {
           await queue.enqueue(item);
         }
       } catch (error, stack) {
-        producerError = error;
-        producerStack = stack;
+        if (error is StateError && error.message.contains('cancelled')) {
+          // Ignore normal buffer cancellation when user stops or pauses playback
+        } else {
+          producerError = error;
+          producerStack = stack;
+        }
       } finally {
         queue.markComplete();
       }

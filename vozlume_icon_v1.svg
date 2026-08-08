@@ -1,0 +1,39 @@
+<svg width="1024" height="1024" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" rx="42" fill="#E7DFC6"/>
+
+  <!-- sombra do livro -->
+  <path d="M100 58 Q76 62 52 70 L48 151 Q74 143 100 141 Q126 143 152 151 L148 70 Q124 62 100 58 Z"
+        fill="#D0C8A8" opacity=".5"/>
+
+  <!-- página esquerda -->
+  <path d="M100 55 Q76 59 52 67 L48 148 Q74 140 100 138 Z"
+        fill="#F5F0E0" stroke="#242229" stroke-width="3.5" stroke-linejoin="round"/>
+
+  <!-- página direita -->
+  <path d="M100 55 Q124 59 148 67 L152 148 Q126 140 100 138 Z"
+        fill="#EDE5CC" stroke="#242229" stroke-width="3.5" stroke-linejoin="round"/>
+
+  <!-- lombada -->
+  <line x1="100" y1="55" x2="100" y2="138"
+        stroke="#242229" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- página esquerda: linhas de texto retas -->
+  <line x1="59" y1="87"  x2="93" y2="85"  stroke="#9A9280" stroke-width="3"   stroke-linecap="round"/>
+  <line x1="59" y1="101" x2="93" y2="99"  stroke="#9A9280" stroke-width="3"   stroke-linecap="round"/>
+  <line x1="59" y1="115" x2="93" y2="113" stroke="#242229" stroke-width="3"   stroke-linecap="round"/>
+  <path d="M59 121 Q66 117 73 121 T87 121 T93 121"
+        stroke="#A8402C" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <line x1="59" y1="130" x2="89" y2="128" stroke="#9A9280" stroke-width="3"   stroke-linecap="round"/>
+
+  <!-- página direita: as mesmas linhas viram ondas -->
+  <path d="M107 87  Q113 81 119 87  Q125 93 131 87  Q137 81 143 87  Q147 91 151 88"
+        stroke="#9A9280" stroke-width="3"   stroke-linecap="round" fill="none"/>
+  <path d="M107 101 Q114 94 121 101 Q128 108 135 101 Q141 95 148 101 Q150 104 152 102"
+        stroke="#9A9280" stroke-width="3"   stroke-linecap="round" fill="none"/>
+  <path d="M107 115 Q114 107 121 115 Q128 123 135 115 Q141 108 148 115 Q150 119 152 116"
+        stroke="#242229" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M107 121 Q115 117 121 121 Q129 125 135 121 Q141 117 147 121 Q150 123 152 122"
+        stroke="#A8402C" stroke-width="3"   stroke-linecap="round" fill="none"/>
+  <path d="M107 130 Q113 125 119 130 Q125 135 131 130 Q137 125 142 130 Q146 133 150 131"
+        stroke="#C0B898" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+</svg>

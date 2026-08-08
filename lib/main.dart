@@ -45,6 +45,7 @@ class TCCNeuralApp extends StatefulWidget {
 class _TCCNeuralAppState extends State<TCCNeuralApp> {
   late final ThemePreferenceRepository _themeRepo;
   ThemeMode _themeMode = ThemeMode.system;
+  AppThemePalette _themePalette = AppThemePalette.padrao;
 
   @override
   void initState() {
@@ -55,13 +56,23 @@ class _TCCNeuralAppState extends State<TCCNeuralApp> {
   }
 
   Future<void> _loadTheme() async {
-    final mode = await _themeRepo.load();
-    if (mounted) setState(() => _themeMode = mode);
+    final state = await _themeRepo.loadState();
+    if (mounted) {
+      setState(() {
+        _themeMode = state.mode;
+        _themePalette = state.palette;
+      });
+    }
   }
 
   void _onThemeModeChanged(ThemeMode mode) {
     setState(() => _themeMode = mode);
-    unawaited(_themeRepo.save(mode));
+    unawaited(_themeRepo.saveState(ThemePreferenceState(mode: mode, palette: _themePalette)));
+  }
+
+  void _onThemePaletteChanged(AppThemePalette palette) {
+    setState(() => _themePalette = palette);
+    unawaited(_themeRepo.saveState(ThemePreferenceState(mode: _themeMode, palette: palette)));
   }
 
   @override
@@ -69,12 +80,14 @@ class _TCCNeuralAppState extends State<TCCNeuralApp> {
     return MaterialApp(
       title: 'TCC - Leitor EPUB Neural & Player de Áudio',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(palette: _themePalette),
+      darkTheme: AppTheme.dark(palette: _themePalette),
       themeMode: _themeMode,
       home: PoCNeuralHomePage(
         themeMode: _themeMode,
         onThemeModeChanged: _onThemeModeChanged,
+        themePalette: _themePalette,
+        onThemePaletteChanged: _onThemePaletteChanged,
       ),
     );
   }
@@ -87,6 +100,8 @@ class PoCNeuralHomePage extends StatefulWidget {
   final IAudioPlayerService? audioPlayer;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final AppThemePalette themePalette;
+  final ValueChanged<AppThemePalette>? onThemePaletteChanged;
 
   const PoCNeuralHomePage({
     super.key,
@@ -96,6 +111,8 @@ class PoCNeuralHomePage extends StatefulWidget {
     this.audioPlayer,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.themePalette = AppThemePalette.padrao,
+    this.onThemePaletteChanged,
   });
 
   @override
@@ -189,13 +206,56 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
 
   CompositeTTSEngine _createEngine() {
     final baseConfig = TTSConfig.defaultPtBr();
-    final modelDirectory = Platform.environment['SUPERTONIC_MODEL_DIR'];
+    String? modelDirectory = Platform.environment['SUPERTONIC_MODEL_DIR'];
+    String? dllDirectory = Platform.environment['SHERPA_ONNX_DLL_DIR'];
+
+    if (Platform.isWindows) {
+      modelDirectory ??=
+          '.planning/tmp/supertonic-extracted/sherpa-onnx-supertonic-3-tts-int8-2026-05-11';
+      dllDirectory ??=
+          '.planning/tmp/win-x64-shared-release/sherpa-onnx-v1.13.4-win-x64-shared-MD-Release-lib/lib';
+    } else if (Platform.isAndroid && (modelDirectory == null || modelDirectory.trim().isEmpty)) {
+      final candidates = <String>[
+        '/storage/emulated/0/Android/data/com.example.tcc_tts_neural/files/supertonic',
+        '/sdcard/Android/data/com.example.tcc_tts_neural/files/supertonic',
+        '/storage/emulated/0/Download/supertonic',
+        '/sdcard/Download/supertonic',
+        '/storage/emulated/0/Download/sherpa-onnx-supertonic-3-tts-int8-2026-05-11',
+        '/sdcard/Download/sherpa-onnx-supertonic-3-tts-int8-2026-05-11',
+      ];
+      for (final candidate in candidates) {
+        final cfg = SupertonicConfig(modelDirectory: candidate);
+        if (cfg.isInstalled) {
+          if (candidate.contains('Download')) {
+            final appSandbox = Directory('/storage/emulated/0/Android/data/com.example.tcc_tts_neural/files/supertonic');
+            try {
+              if (!appSandbox.existsSync()) appSandbox.createSync(recursive: true);
+              for (final file in SupertonicConfig.requiredFiles) {
+                final src = File('$candidate/$file');
+                final dest = File('${appSandbox.path}/$file');
+                if (src.existsSync() && (!dest.existsSync() || dest.lengthSync() != src.lengthSync())) {
+                  src.copySync(dest.path);
+                }
+              }
+              modelDirectory = appSandbox.path;
+              break;
+            } catch (_) {
+              modelDirectory = candidate;
+              break;
+            }
+          }
+          modelDirectory = candidate;
+          break;
+        }
+      }
+    }
+
     if (modelDirectory == null || modelDirectory.trim().isEmpty) {
       return CompositeTTSEngine(config: baseConfig);
     }
     final supertonicConfig = SupertonicConfig(
       modelDirectory: modelDirectory,
-      nativeLibraryDirectory: Platform.environment['SHERPA_ONNX_DLL_DIR'],
+      nativeLibraryDirectory: dllDirectory,
     );
     if (!supertonicConfig.isInstalled) {
       return CompositeTTSEngine(config: baseConfig);
@@ -480,8 +540,9 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       _isStreaming = true;
     });
 
+    final currentGen = _streamGeneration;
     await _advanceStreamingSentence(
-      _streamGeneration,
+      currentGen,
       iterator,
       queue,
     );
@@ -882,6 +943,10 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
       currentPosition: _currentPosition,
       totalDuration: _totalDuration,
       currentSpeed: _currentSpeed,
+      maxSpeed: _engine.activeType == TTSEngineType.supertonic ||
+              _engine.selectedType == TTSEngineType.supertonic
+          ? 1.5
+          : 2.0,
       onBack: () => unawaited(_closeReader()),
       onChapterChanged: (selected) => unawaited(_changeChapter(selected)),
       onSentenceSelected: _selectSentence,
@@ -926,6 +991,8 @@ class _PoCNeuralHomePageState extends State<PoCNeuralHomePage>
         onEngineChanged: (type) => unawaited(_switchEngine(type)),
         themeMode: widget.themeMode,
         onThemeModeChanged: widget.onThemeModeChanged,
+        themePalette: widget.themePalette,
+        onThemePaletteChanged: widget.onThemePaletteChanged,
       );
     }
     return LibraryView(

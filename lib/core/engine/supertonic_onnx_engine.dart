@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
@@ -9,15 +10,46 @@ import '../config/supertonic_config.dart';
 import '../config/tts_config.dart';
 import 'tts_engine_interface.dart';
 
-/// Offline Supertonic 3 engine backed by sherpa-onnx.
+class _SupertonicIsolateParams {
+  final String modelDirectory;
+  final String? nativeLibraryDirectory;
+  final String language;
+  final int speakerId;
+  final double speed;
+  final int numSteps;
+  final int numThreads;
+  final String text;
+
+  const _SupertonicIsolateParams({
+    required this.modelDirectory,
+    this.nativeLibraryDirectory,
+    required this.language,
+    required this.speakerId,
+    required this.speed,
+    required this.numSteps,
+    required this.numThreads,
+    required this.text,
+  });
+}
+
+class _SupertonicAudioData {
+  final Float32List samples;
+  final int sampleRate;
+
+  const _SupertonicAudioData({
+    required this.samples,
+    required this.sampleRate,
+  });
+}
+
+/// Offline Supertonic 3 engine backed by sherpa-onnx running in a background Isolate.
 class SupertonicOnnxEngine extends ITTSEngine {
   final SupertonicConfig supertonicConfig;
 
   @override
   final TTSConfig config;
 
-  sherpa.OfflineTts? _tts;
-  final List<DynamicLibrary> _nativeHandles = [];
+  bool _initialized = false;
 
   SupertonicOnnxEngine({
     required this.supertonicConfig,
@@ -25,7 +57,7 @@ class SupertonicOnnxEngine extends ITTSEngine {
   }) : config = config ?? TTSConfig.defaultPtBr();
 
   @override
-  bool get isInitialized => _tts != null;
+  bool get isInitialized => _initialized;
 
   @override
   Future<void> initialize() async {
@@ -36,80 +68,36 @@ class SupertonicOnnxEngine extends ITTSEngine {
         'Instalação Supertonic incompleta. Arquivos ausentes: ${missing.join(', ')}.',
       );
     }
-
-    try {
-      _preloadWindowsDependencies();
-      sherpa.initBindings(supertonicConfig.nativeLibraryDirectory);
-      final directory = supertonicConfig.modelDirectory;
-      String modelPath(String name) =>
-          '$directory${Platform.pathSeparator}$name';
-      _tts = sherpa.OfflineTts(
-        sherpa.OfflineTtsConfig(
-          model: sherpa.OfflineTtsModelConfig(
-            supertonic: sherpa.OfflineTtsSupertonicModelConfig(
-              durationPredictor: modelPath('duration_predictor.int8.onnx'),
-              textEncoder: modelPath('text_encoder.int8.onnx'),
-              vectorEstimator: modelPath('vector_estimator.int8.onnx'),
-              vocoder: modelPath('vocoder.int8.onnx'),
-              ttsJson: modelPath('tts.json'),
-              unicodeIndexer: modelPath('unicode_indexer.bin'),
-              voiceStyle: modelPath('voice.bin'),
-            ),
-            numThreads: supertonicConfig.numThreads,
-            debug: false,
-            provider: 'cpu',
-          ),
-        ),
-      );
-    } on Object catch (error) {
-      await dispose();
-      throw TTSEngineInitializationException(
-        'Não foi possível inicializar o Supertonic 3.',
-        error,
-      );
-    }
-  }
-
-  void _preloadWindowsDependencies() {
-    final directory = supertonicConfig.nativeLibraryDirectory;
-    if (!Platform.isWindows || directory == null || _nativeHandles.isNotEmpty) {
-      return;
-    }
-    for (final name in const [
-      'mbrola.dll',
-      'onnxruntime.dll',
-      'onnxruntime_providers_shared.dll',
-    ]) {
-      _nativeHandles.add(
-        DynamicLibrary.open('$directory${Platform.pathSeparator}$name'),
-      );
-    }
+    _initialized = true;
   }
 
   @override
   Future<AudioBuffer> synthesize(String text) async {
     if (text.trim().isEmpty) {
       return AudioBuffer(
-          samples: Float32List(0), sampleRate: config.sampleRate);
+        samples: Float32List(0),
+        sampleRate: config.sampleRate,
+      );
     }
     if (!isInitialized) await initialize();
+
+    final params = _SupertonicIsolateParams(
+      modelDirectory: supertonicConfig.modelDirectory,
+      nativeLibraryDirectory: supertonicConfig.nativeLibraryDirectory,
+      language: supertonicConfig.language,
+      speakerId: supertonicConfig.speakerId,
+      speed: supertonicConfig.speed,
+      numSteps: supertonicConfig.numSteps,
+      numThreads: supertonicConfig.numThreads,
+      text: text,
+    );
+
     try {
-      final audio = _tts!.generateWithConfig(
-        text: text,
-        config: sherpa.OfflineTtsGenerationConfig(
-          sid: supertonicConfig.speakerId,
-          speed: supertonicConfig.speed,
-          numSteps: supertonicConfig.numSteps,
-          extra: {
-            'lang': supertonicConfig.language,
-            'num_steps': supertonicConfig.numSteps,
-          },
-        ),
+      final audioData = await Isolate.run(() => _synthesizeInIsolate(params));
+      return AudioBuffer(
+        samples: audioData.samples,
+        sampleRate: audioData.sampleRate,
       );
-      if (audio.samples.isEmpty || audio.sampleRate <= 0) {
-        throw const TTSSynthesisException('Supertonic retornou áudio vazio.');
-      }
-      return AudioBuffer(samples: audio.samples, sampleRate: audio.sampleRate);
     } on TTSSynthesisException {
       rethrow;
     } on Object catch (error) {
@@ -117,10 +105,74 @@ class SupertonicOnnxEngine extends ITTSEngine {
     }
   }
 
+  static _SupertonicAudioData _synthesizeInIsolate(
+    _SupertonicIsolateParams params,
+  ) {
+    final nativeHandles = <DynamicLibrary>[];
+    if (Platform.isWindows && params.nativeLibraryDirectory != null) {
+      for (final name in const [
+        'mbrola.dll',
+        'onnxruntime.dll',
+        'onnxruntime_providers_shared.dll',
+      ]) {
+        final dllPath =
+            '${params.nativeLibraryDirectory}${Platform.pathSeparator}$name';
+        if (File(dllPath).existsSync()) {
+          nativeHandles.add(DynamicLibrary.open(dllPath));
+        }
+      }
+    }
+    sherpa.initBindings(params.nativeLibraryDirectory);
+    final directory = params.modelDirectory;
+    String modelPath(String name) => '$directory${Platform.pathSeparator}$name';
+
+    final tts = sherpa.OfflineTts(
+      sherpa.OfflineTtsConfig(
+        model: sherpa.OfflineTtsModelConfig(
+          supertonic: sherpa.OfflineTtsSupertonicModelConfig(
+            durationPredictor: modelPath('duration_predictor.int8.onnx'),
+            textEncoder: modelPath('text_encoder.int8.onnx'),
+            vectorEstimator: modelPath('vector_estimator.int8.onnx'),
+            vocoder: modelPath('vocoder.int8.onnx'),
+            ttsJson: modelPath('tts.json'),
+            unicodeIndexer: modelPath('unicode_indexer.bin'),
+            voiceStyle: modelPath('voice.bin'),
+          ),
+          numThreads: params.numThreads,
+          debug: false,
+          provider: 'cpu',
+        ),
+      ),
+    );
+
+    try {
+      final audio = tts.generateWithConfig(
+        text: params.text,
+        config: sherpa.OfflineTtsGenerationConfig(
+          sid: params.speakerId,
+          speed: params.speed,
+          numSteps: params.numSteps,
+          extra: {
+            'lang': params.language,
+            'num_steps': params.numSteps,
+          },
+        ),
+      );
+      if (audio.samples.isEmpty || audio.sampleRate <= 0) {
+        throw const TTSSynthesisException('Supertonic retornou áudio vazio.');
+      }
+      return _SupertonicAudioData(
+        samples: audio.samples,
+        sampleRate: audio.sampleRate,
+      );
+    } finally {
+      tts.free();
+      nativeHandles.clear();
+    }
+  }
+
   @override
   Future<void> dispose() async {
-    _tts?.free();
-    _tts = null;
-    _nativeHandles.clear();
+    _initialized = false;
   }
 }

@@ -93,7 +93,7 @@ class SherpaOnnxTTSEngine extends ITTSEngine {
         lexicon: '',
         dataDir: absEspeakDataDir,
         noiseScale: config.noiseScale,
-        noiseScaleW: 0.8,
+        noiseScaleW: 0.95,
         lengthScale: config.lengthScale,
       );
 
@@ -328,7 +328,13 @@ class SherpaOnnxTTSEngine extends ITTSEngine {
           '[SherpaOnnxTTSEngine FFI PRE-CALL] Chamando _tts!.generate(text: "$sampleSnippet", sid: 0)...',
         );
 
-        final audio = _tts!.generate(text: cleanText, sid: 0, speed: 1.0);
+        final audio = _tts!.generateWithConfig(
+          text: cleanText,
+          config: const sherpa.OfflineTtsGenerationConfig(
+            sid: 0,
+            speed: 1.0,
+          ),
+        );
 
         debugPrint(
           '[SherpaOnnxTTSEngine FFI POST-CALL] Geração C++ concluída com sucesso! (${audio.samples.length} amostras, ${audio.sampleRate}Hz)',

@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/document/saved_book.dart';
 import '../app_theme.dart';
+import 'vozlume_icon.dart';
 
 class LibraryView extends StatelessWidget {
   final List<SavedBookRecord> books;
@@ -155,33 +157,31 @@ class _LibraryHeader extends StatelessWidget {
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.sm,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('VozLume', style: theme.textTheme.titleLarge ?? AppTextStyles.brandDisplay),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Leitor neural de EPUB',
-              style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface),
+            const VozLumeIcon(size: 32),
+            const SizedBox(width: AppSpacing.xs),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('VozLume', style: theme.textTheme.titleLarge ?? AppTextStyles.brandDisplay),
+                Text(
+                  'Leitor neural de EPUB',
+                  style: TextStyle(color: ext?.textSoft ?? theme.colorScheme.onSurface, fontSize: 12),
+                ),
+              ],
             ),
           ],
         ),
-        Wrap(
-          spacing: AppSpacing.sm,
-          children: [
-            Chip(
-              avatar: Icon(Icons.offline_bolt, color: ext?.moss ?? theme.colorScheme.primary, size: 16),
-              label: const Text('OFFLINE'),
-            ),
-            Chip(
-              avatar: Icon(
-                Icons.graphic_eq,
-                color: theme.colorScheme.primary,
-                size: 16,
-              ),
-              label: Text(engineStatus),
-            ),
-          ],
+        Chip(
+          avatar: Icon(
+            Icons.graphic_eq,
+            color: theme.colorScheme.primary,
+            size: 16,
+          ),
+          label: Text(engineStatus),
         ),
       ],
     );
@@ -370,6 +370,9 @@ class SavedBookTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final ext = theme.extension<AppThemeExtension>();
+    final hasCover = record.coverPath != null &&
+        record.coverPath!.isNotEmpty &&
+        File(record.coverPath!).existsSync();
 
     return Card(
       color: ext?.card ?? theme.colorScheme.surface,
@@ -382,15 +385,31 @@ class SavedBookTile extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 60,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                child: Container(
+                  width: 44,
+                  height: 60,
+                  alignment: Alignment.center,
                   color: ext?.cardElevated ?? theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  child: hasCover
+                      ? Image.file(
+                          File(record.coverPath!),
+                          width: 44,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.auto_stories,
+                              color: theme.colorScheme.primary,
+                            );
+                          },
+                        )
+                      : Icon(
+                          Icons.auto_stories,
+                          color: theme.colorScheme.primary,
+                        ),
                 ),
-                child: Icon(Icons.auto_stories, color: theme.colorScheme.primary),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

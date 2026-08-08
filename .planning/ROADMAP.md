@@ -142,13 +142,19 @@ Plans:
 - [x] 14-10-PLAN.md — UAT nativo Android/Windows e aprovação visual
 - **Status**: Concluído
 
-### Phase 15: Suite de Testes de Carga, Telemetria & AvaliaÃ§Ã£o Quantitativa
+### Phase 15: Integração do Motor de Voz Neural Expressivo Supertonic 3
 
-- **Foco**: ExecuÃ§Ã£o de bateria de testes com livros de diferentes tamanhos (curto, mÃ©dio, longo) no dispositivo, gerando tabelas e grÃ¡ficos estatÃ­sticos de RTF, RAM (MB) e CPU.
-- **Testes**: GeraÃ§Ã£o automatizada de dados para a seÃ§Ã£o de resultados da monografia.
+- **Foco**: Integrar a engine de voz neural de alta naturalidade Supertonic 3 (e/ou alternativas ONNX expressivas como Kokoro 82M) ao orquestrador `CompositeTTSEngine`, oferecendo seleção dinâmica de motores na UI e voz imersiva sem tom robótico.
+- **Entregável**: Motor `SupertonicOnnxEngine`, seletor de vozes na interface do leitor e suporte a modelos ONNX expressivos 100% offline.
 - **Status**: Pendente
 
-### Phase 16: RedaÃ§Ã£o da Monografia Final e Slides da Banca
+### Phase 16: Suite de Testes de Carga, Telemetria & Avaliação Quantitativa
 
-- **Foco**: CompilaÃ§Ã£o de todos os dados, fundamentaÃ§Ã£o teÃ³rica, diagramas de arquitetura e resultados no documento do TCC.
+- **Foco**: Execução de bateria de testes com livros de diferentes tamanhos (curto, médio, longo) no dispositivo, gerando tabelas e gráficos estatísticos comparativos (Piper vs Supertonic) de RTF, RAM (MB) e CPU.
+- **Testes**: Geração automatizada de dados para a seção de resultados da monografia.
+- **Status**: Pendente
+
+### Phase 17: Redação da Monografia Final e Slides da Banca
+
+- **Foco**: Compilação de todos os dados, fundamentação teórica, diagramas de arquitetura e resultados no documento do TCC.
 - **Status**: Pendente
