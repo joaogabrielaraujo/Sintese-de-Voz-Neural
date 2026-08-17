@@ -148,6 +148,17 @@ Plans:
 - **Entregável**: Motor `SupertonicOnnxEngine`, seletor de vozes na interface do leitor e suporte a modelos ONNX expressivos 100% offline.
 - **Status**: Pendente
 
+### Phase 15.1: Estabilização, Calibração e Pipeline Adaptativo do Supertonic 3 (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 15
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 15.1 to break down)
+
 ### Phase 16: Suite de Testes de Carga, Telemetria & Avaliação Quantitativa
 
 - **Foco**: Execução de bateria de testes com livros de diferentes tamanhos (curto, médio, longo) no dispositivo, gerando tabelas e gráficos estatísticos comparativos (Piper vs Supertonic) de RTF, RAM (MB) e CPU.

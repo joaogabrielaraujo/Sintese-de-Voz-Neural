@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 15
-status: phase_completed
-stopped_at: Phase 15 complete
-last_updated: "2026-08-07T23:54:00.000Z"
+current_phase: 15.1
+status: planned
+stopped_at: Phase 15.1 planning revised with research and verification gates
+last_updated: "2026-08-10T03:12:21.330Z"
 progress:
-  total_phases: 17
-  completed_phases: 15
-  total_plans: 26
-  completed_plans: 24
+  total_phases: 16
+  completed_phases: 1
+  total_plans: 31
+  completed_plans: 10
 paused_at: Phase 15 complete; ready for Phase 16 (Telemetria e Coleta de Métricas para TCC)
-current_phase_name: supertonic-voice-engine
+current_phase_name: estabiliza-o-calibra-o-e-pipeline-adaptativo-do-supertonic-3
 ---
 
 # Session State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md
 ## Position
 
 **Milestone:** v1.0 milestone
-**Current phase:** 15
+**Current phase:** 15.1
 **Status:** Phase 15 Concluída (Supertonic 3 & Otimizações Piper VITS)
 
 ## Session Log
@@ -52,7 +52,12 @@ See: .planning/PROJECT.md
 
 ## Session
 
-**Last session:** 2026-08-07T23:54:00.000Z
-**Stopped at:** Phase 15 complete, ready for APK build and Phase 16
-**Resume file:** .planning/phases/16-telemetry-and-metrics/16-CONTEXT.md
+**Last session:** 2026-08-10T03:12:21.243Z
+**Stopped at:** Phase 15.1 planning revised with research and verification gates
+**Resume file:** .planning/phases/15.1-estabiliza-o-e-pipeline-adaptativo-do-supertonic-3/15.1-01-PLAN.md
 
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 15.1 inserted after Phase 15: Estabilização, calibração e pipeline adaptativo do Supertonic 3 antes da telemetria acadêmica (URGENT)

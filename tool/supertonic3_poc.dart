@@ -20,7 +20,13 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final modelDir = Directory(args.first).absolute;
+  final modelPathArgument = args.first;
+  final options = _parseOptions(args.skip(1));
+  final speed = options['speed'] as double;
+  final numSteps = options['numSteps'] as int;
+  final numThreads = options['numThreads'] as int;
+
+  final modelDir = Directory(modelPathArgument).absolute;
   final outputDir = Directory('.planning/tmp/supertonic-poc-output').absolute;
   final required = <String, String>{
     'durationPredictor': 'duration_predictor.int8.onnx',
@@ -71,7 +77,7 @@ Future<void> main(List<String> args) async {
           unicodeIndexer: paths['unicodeIndexer']!,
           voiceStyle: paths['voiceStyle']!,
         ),
-        numThreads: 4,
+        numThreads: numThreads,
         debug: false,
         provider: 'cpu',
       ),
@@ -90,11 +96,11 @@ Future<void> main(List<String> args) async {
       final stopwatch = Stopwatch()..start();
       final audio = tts.generateWithConfig(
         text: normalizedText,
-        config: const sherpa.OfflineTtsGenerationConfig(
+        config: sherpa.OfflineTtsGenerationConfig(
           sid: 0,
-          speed: 2.0,
-          numSteps: 6,
-          extra: {'lang': 'pt', 'num_steps': 6},
+          speed: speed,
+          numSteps: numSteps,
+          extra: {'lang': 'pt', 'num_steps': numSteps},
         ),
       );
       stopwatch.stop();
@@ -133,11 +139,49 @@ Future<void> main(List<String> args) async {
       'modelDirectory': modelDir.path,
       'language': 'pt',
       'speakerId': 0,
-      'numSteps': 12,
+      'speed': speed,
+      'numSteps': numSteps,
+      'numThreads': numThreads,
       'normalized': true,
       'results': results,
     }),
     flush: true,
   );
   stdout.writeln(await report.readAsString());
+}
+
+Map<String, Object> _parseOptions(Iterable<String> arguments) {
+  var speed = 1.0;
+  var numSteps = 6;
+  var numThreads = 4;
+
+  for (final argument in arguments) {
+    final separator = argument.indexOf('=');
+    if (separator <= 2 || !argument.startsWith('--')) {
+      throw FormatException('Opção inválida: $argument');
+    }
+    final key = argument.substring(2, separator);
+    final value = argument.substring(separator + 1);
+    switch (key) {
+      case 'speed':
+        speed = double.parse(value);
+        if (speed <= 0) throw FormatException('speed deve ser positivo');
+      case 'num-steps':
+        numSteps = int.parse(value);
+        if (numSteps <= 0) throw FormatException('num-steps deve ser positivo');
+      case 'num-threads':
+        numThreads = int.parse(value);
+        if (numThreads <= 0) {
+          throw FormatException('num-threads deve ser positivo');
+        }
+      default:
+        throw FormatException('Opção desconhecida: --$key');
+    }
+  }
+
+  return {
+    'speed': speed,
+    'numSteps': numSteps,
+    'numThreads': numThreads,
+  };
 }
