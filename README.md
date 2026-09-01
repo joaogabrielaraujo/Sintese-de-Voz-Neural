@@ -2,7 +2,7 @@
 
 ## Leitor EPUB baseado em Edge Computing, Sherpa-ONNX, Piper VITS e Supertonic 3
 
-Projeto de Trabalho de Conclusão de Curso (TCC) desenvolvido por **João Gabriel Araújo Almeida**, no curso de Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS), sob orientação de .
+Projeto de Trabalho de Conclusão de Curso (TCC) desenvolvido por **João Gabriel Araújo Almeida**, no curso de Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS), sob orientação de Ana Lúcia Lima Marreiros.
 
 O **VozLume** é um aplicativo leitor de livros digitais (EPUB) focado em síntese de voz neural offline em Português Brasileiro (PT-BR). O software opera com baixa latência (Time-To-First-Audio < 300ms) e consumo de memória RAM controlado através de técnicas de *Edge Computing* em dispositivos Android e Windows.
 
